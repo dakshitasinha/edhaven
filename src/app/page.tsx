@@ -1,3 +1,4 @@
+import Link from "next/link";
 export default function Home() {
   return (
     <main className="min-h-screen bg-[#f7f8fc]">
@@ -12,16 +13,55 @@ export default function Home() {
           </div>
 
           <nav className="space-y-2">
-            <div className="rounded-lg bg-gray-100 px-4 py-3 text-sm font-medium">
-              Dashboard
-            </div>
-            <div className="px-4 py-3 text-sm text-gray-600">Goals</div>
-            <div className="px-4 py-3 text-sm text-gray-600">Learn</div>
-            <div className="px-4 py-3 text-sm text-gray-600">Focus Room</div>
-            <div className="px-4 py-3 text-sm text-gray-600">Notes</div>
-            <div className="px-4 py-3 text-sm text-gray-600">Flashcards</div>
-            <div className="px-4 py-3 text-sm text-gray-600">Progress</div>
-          </nav>
+  <Link
+    href="/"
+    className="block rounded-lg bg-gray-100 px-4 py-3 text-sm font-medium"
+  >
+    Dashboard
+  </Link>
+
+  <Link
+    href="/goals"
+    className="block rounded-lg px-4 py-3 text-sm text-gray-600 hover:bg-gray-100"
+  >
+    Goals
+  </Link>
+
+  <Link
+    href="/learn"
+    className="block rounded-lg px-4 py-3 text-sm text-gray-600 hover:bg-gray-100"
+  >
+    Learn
+  </Link>
+
+  <Link
+    href="/focus"
+    className="block rounded-lg px-4 py-3 text-sm text-gray-600 hover:bg-gray-100"
+  >
+    Focus Room
+  </Link>
+
+  <Link
+    href="/notes"
+    className="block rounded-lg px-4 py-3 text-sm text-gray-600 hover:bg-gray-100"
+  >
+    Notes
+  </Link>
+
+  <Link
+    href="/flashcards"
+    className="block rounded-lg px-4 py-3 text-sm text-gray-600 hover:bg-gray-100"
+  >
+    Flashcards
+  </Link>
+
+  <Link
+    href="/progress"
+    className="block rounded-lg px-4 py-3 text-sm text-gray-600 hover:bg-gray-100"
+  >
+    Progress
+  </Link>
+</nav>
         </aside>
 
         {/* Main content */}
@@ -76,9 +116,12 @@ export default function Home() {
                   distractions.
                 </p>
 
-                <button className="mt-6 rounded-xl bg-white px-6 py-3 font-semibold text-gray-900">
-                  Start Focus Session
-                </button>
+                <Link
+  href="/focus"
+  className="mt-6 inline-block rounded-xl bg-white px-6 py-3 font-semibold text-gray-900"
+>
+  Start Focus Session
+</Link>
               </div>
             </div>
 
