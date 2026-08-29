@@ -7,7 +7,7 @@ const navItems = [
   { href: "/", label: "Dashboard" },
   { href: "/goals", label: "Goals" },
   { href: "/learn", label: "Learn" },
-  { href: "/focus", label: "Focus Room" },
+  { href: "/focus-room", label: "Focus Room" },
   { href: "/notes", label: "Notes" },
   { href: "/flashcards", label: "Flashcards" },
   { href: "/progress", label: "Progress" },

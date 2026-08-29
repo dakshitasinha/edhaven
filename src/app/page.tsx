@@ -51,7 +51,7 @@ export default function Home() {
             </p>
 
             <Link
-              href="/focus"
+              href="/focus-room"
               className="mt-6 inline-block rounded-xl bg-white px-6 py-3 font-semibold text-gray-900"
             >
               Start Focus Session
