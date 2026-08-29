@@ -1,36 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# EdHaven
 
-## Getting Started
+> A calm space to learn at your own pace.
 
-First, run the development server:
+EdHaven is a student-focused study workspace designed to bring learning, planning, focus, and progress into one simple place.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Instead of juggling multiple tools for goals, notes, flashcards, study sessions, and progress, EdHaven aims to provide one clean workspace built around the way students actually study.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Current Features
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- 📊 **Dashboard** — A central overview of your study workspace
+- 🎯 **Goals** — Create learning goals, break them into tasks, and track completion
+- 📚 **Learn** — Organize learning materials by subject and track progress
+- ⏱️ **Focus Room** — Pomodoro-style focus sessions with study statistics
+- 📝 **Notes** — Create, edit, search, and organize simple study notes
+- 🧠 **Flashcards** — Create and practice question-and-answer flashcards
+- 📈 **Progress** — View study streaks, focus time, completed tasks, and activity
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Tech Stack
 
-## Learn More
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+- Git / GitHub
 
-To learn more about Next.js, take a look at the following resources:
+## Project Status
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+EdHaven is currently in active development.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Completed
+- Core application layout
+- Dashboard
+- Goals
+- Learn
+- Focus Room
+- Notes
+- Flashcards
+- Progress
+- Responsive navigation
 
-## Deploy on Vercel
+### Coming Next
+- Supabase database
+- User authentication
+- Persistent goals, notes, and flashcards
+- Connecting data across the application
+- AI-powered study assistance
+- More personalized progress tracking
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Vision
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+EdHaven is being built around a simple idea:
+
+**Studying shouldn't feel like managing a dozen different tools.**
+
+The goal is to create a focused, comfortable digital study environment where students can plan what they want to learn, actually study it, and see themselves making progress.
