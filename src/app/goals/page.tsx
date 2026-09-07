@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import AppShell from "@/components/AppShell";
+import { supabase } from "@/lib/supabase/client";
 
 type GoalTask = {
   id: string;
@@ -17,30 +18,20 @@ type Goal = {
   tasks: GoalTask[];
 };
 
-const initialGoals: Goal[] = [
-  {
-    id: "demo-data-structures",
-    subject: "Data Structures",
-    description: "Understand linked lists and solve 5 problems.",
-    deadline: "2026-09-12",
-    tasks: [
-      { id: "ds-1", label: "Understand nodes", done: true },
-      { id: "ds-2", label: "Learn traversal", done: true },
-      { id: "ds-3", label: "Solve 5 practice problems", done: false },
-    ],
-  },
-  {
-    id: "demo-database-management",
-    subject: "Database Management",
-    description: "Complete SQL fundamentals",
-    deadline: "2026-10-03",
-    tasks: [
-      { id: "db-1", label: "Learn SELECT queries", done: true },
-      { id: "db-2", label: "Practice JOIN statements", done: true },
-      { id: "db-3", label: "Write aggregation queries", done: false },
-    ],
-  },
-];
+type GoalRow = {
+  id: string;
+  subject: string;
+  title: string;
+  description: string | null;
+  deadline: string | null;
+};
+
+type TaskRow = {
+  id: string;
+  goal_id: string;
+  title: string;
+  completed: boolean;
+};
 
 function formatDeadline(value: string) {
   if (!value) return null;
@@ -265,7 +256,9 @@ export default function GoalsPage() {
   const titleId = useId();
   const subjectInputRef = useRef<HTMLInputElement>(null);
 
-  const [goals, setGoals] = useState<Goal[]>(initialGoals);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [subject, setSubject] = useState("");
@@ -277,20 +270,111 @@ export default function GoalsPage() {
     description: "",
   });
 
-  function deleteGoal(goalId: string) {
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadGoals() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        if (isMounted) {
+          setError("Please sign in to view your goals.");
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      const [goalsResult, tasksResult] = await Promise.all([
+        supabase
+          .from("goals")
+          .select("id, subject, title, description, deadline")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("tasks")
+          .select("id, goal_id, title, completed")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: true }),
+      ]);
+
+      if (!isMounted) return;
+
+      if (goalsResult.error || tasksResult.error) {
+        setError("We couldn't load your goals. Please try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      const goalRows = goalsResult.data as GoalRow[];
+      const taskRows = tasksResult.data as TaskRow[];
+
+      setGoals(
+        goalRows.map((goal) => ({
+          id: goal.id,
+          subject: goal.subject,
+          description: goal.description || goal.title,
+          deadline: goal.deadline || "",
+          tasks: taskRows
+            .filter((task) => task.goal_id === goal.id)
+            .map((task) => ({
+              id: task.id,
+              label: task.title,
+              done: task.completed,
+            })),
+        })),
+      );
+      setIsLoading(false);
+    }
+
+    loadGoals().catch(() => {
+      if (isMounted) {
+        setError("We couldn't load your goals. Please try again.");
+        setIsLoading(false);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  async function deleteGoal(goalId: string) {
     const confirmed = window.confirm("Delete this goal?");
 
     if (!confirmed) return;
+
+    const { error: deleteError } = await supabase
+      .from("goals")
+      .delete()
+      .eq("id", goalId);
+
+    if (deleteError) {
+      setError("We couldn't delete that goal. Please try again.");
+      return;
+    }
 
     setGoals((current) =>
       current.filter((goal) => goal.id !== goalId),
     );
   }
 
-  function deleteTask(goalId: string, taskId: string) {
+  async function deleteTask(goalId: string, taskId: string) {
     const confirmed = window.confirm("Delete this task?");
 
     if (!confirmed) return;
+
+    const { error: deleteError } = await supabase
+      .from("tasks")
+      .delete()
+      .eq("id", taskId)
+      .eq("goal_id", goalId);
+
+    if (deleteError) {
+      setError("We couldn't delete that task. Please try again.");
+      return;
+    }
 
     setGoals((current) =>
       current.map((goal) =>
@@ -304,7 +388,7 @@ export default function GoalsPage() {
     );
   }
 
-  function editTask(
+  async function editTask(
     goalId: string,
     taskId: string,
     currentLabel: string,
@@ -315,6 +399,17 @@ export default function GoalsPage() {
     )?.trim();
 
     if (!nextLabel) return;
+
+    const { error: updateError } = await supabase
+      .from("tasks")
+      .update({ title: nextLabel })
+      .eq("id", taskId)
+      .eq("goal_id", goalId);
+
+    if (updateError) {
+      setError("We couldn't update that task. Please try again.");
+      return;
+    }
 
     setGoals((current) =>
       current.map((goal) =>
@@ -332,7 +427,34 @@ export default function GoalsPage() {
     );
   }
 
-  function addTask(goalId: string, title: string) {
+  async function addTask(goalId: string, title: string) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setError("Please sign in to add a task.");
+      return;
+    }
+
+    const { data, error: insertError } = await supabase
+      .from("tasks")
+      .insert({
+        goal_id: goalId,
+        user_id: user.id,
+        title,
+        completed: false,
+      })
+      .select("id, goal_id, title, completed")
+      .single();
+
+    if (insertError || !data) {
+      setError("We couldn't add that task. Please try again.");
+      return;
+    }
+
+    const task = data as TaskRow;
+
     setGoals((current) =>
       current.map((goal) =>
         goal.id === goalId
@@ -341,9 +463,9 @@ export default function GoalsPage() {
               tasks: [
                 ...goal.tasks,
                 {
-                  id: crypto.randomUUID(),
-                  label: title,
-                  done: false,
+                  id: task.id,
+                  label: task.title,
+                  done: task.completed,
                 },
               ],
             }
@@ -352,7 +474,23 @@ export default function GoalsPage() {
     );
   }
 
-  function toggleTask(goalId: string, taskId: string) {
+  async function toggleTask(goalId: string, taskId: string) {
+    const goal = goals.find((currentGoal) => currentGoal.id === goalId);
+    const task = goal?.tasks.find((currentTask) => currentTask.id === taskId);
+
+    if (!task) return;
+
+    const { error: updateError } = await supabase
+      .from("tasks")
+      .update({ completed: !task.done })
+      .eq("id", taskId)
+      .eq("goal_id", goalId);
+
+    if (updateError) {
+      setError("We couldn't update that task. Please try again.");
+      return;
+    }
+
     setGoals((current) =>
       current.map((goal) =>
         goal.id === goalId
@@ -410,7 +548,7 @@ export default function GoalsPage() {
     };
   }, [isModalOpen]);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const nextSubject = subject.trim();
@@ -429,12 +567,73 @@ export default function GoalsPage() {
       return;
     }
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    console.log("Create goal authenticated user:", {
+      userId: user?.id ?? null,
+    });
+
+    if (!user) {
+      setError("Please sign in to create a goal.");
+      return;
+    }
+
+    const insertPayload = {
+      user_id: user.id,
+      subject: nextSubject,
+      title: nextDescription,
+      description: null,
+      deadline: deadline || null,
+    };
+
+    console.log("Create goal request:", {
+      userId: user.id,
+      payload: insertPayload,
+      hasSupabaseUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
+      hasSupabaseAnonKey: Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
+    });
+
+    const { data, error: insertError } = await supabase
+      .from("goals")
+      .insert(insertPayload)
+      .select("id, subject, title, description, deadline")
+      .single();
+
+    const responseErrorStatus =
+      insertError && "status" in insertError
+        ? (insertError as { status?: number }).status
+        : undefined;
+
+    console.log("Create goal response:", {
+      data,
+      errorMessage: insertError?.message,
+      errorDetails: insertError?.details,
+      errorHint: insertError?.hint,
+      errorCode: insertError?.code,
+      errorStatus: responseErrorStatus,
+    });
+
+    if (insertError || !data) {
+      console.error("Failed to create goal:", {
+        message: insertError?.message,
+        details: insertError?.details,
+        hint: insertError?.hint,
+        code: insertError?.code,
+      });
+      setError("We couldn't create that goal. Please try again.");
+      return;
+    }
+
+    const goal = data as GoalRow;
+
     setGoals((current) => [
       {
-        id: crypto.randomUUID(),
-        subject: nextSubject,
-        description: nextDescription,
-        deadline,
+        id: goal.id,
+        subject: goal.subject,
+        description: goal.description || goal.title,
+        deadline: goal.deadline || "",
         tasks: [],
       },
       ...current,
@@ -467,7 +666,20 @@ export default function GoalsPage() {
           </button>
         </header>
 
-        <section className="rounded-2xl border border-gray-200 bg-white px-6 py-12 text-center sm:px-10">
+        {error ? (
+          <p className="mb-6 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600">
+            {error}
+          </p>
+        ) : null}
+
+        {isLoading ? (
+          <p className="rounded-2xl border border-gray-200 bg-white px-6 py-12 text-center text-sm text-gray-400">
+            Loading goals...
+          </p>
+        ) : null}
+
+        {!isLoading && goals.length === 0 ? (
+          <section className="rounded-2xl border border-gray-200 bg-white px-6 py-12 text-center sm:px-10">
           <p className="text-sm font-medium text-gray-400">
             No goals yet
           </p>
@@ -490,7 +702,8 @@ export default function GoalsPage() {
             <span aria-hidden="true">+</span>
             Create your first goal
           </button>
-        </section>
+          </section>
+        ) : null}
 
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
           {goals.map((goal) => (
@@ -533,6 +746,12 @@ export default function GoalsPage() {
               Add a subject and a clear outcome. Deadline is
               optional.
             </p>
+
+            {error ? (
+              <p className="mt-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                {error}
+              </p>
+            ) : null}
 
             <form
               className="mt-6 space-y-4"
