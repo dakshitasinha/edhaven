@@ -1,10 +1,43 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
+import { supabase } from "@/lib/supabase/client";
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    let isMounted = true;
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!isMounted) return;
+
+      if (session) {
+        setIsAuthenticated(true);
+      } else {
+        router.replace("/auth");
+      }
+    });
+
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setIsAuthenticated(true);
+      } else {
+        router.replace("/auth");
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      data.subscription.unsubscribe();
+    };
+  }, [router]);
+
+  if (!isAuthenticated) return null;
 
   return (
     <main className="min-h-screen bg-[#f7f8fc]">

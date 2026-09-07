@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
+import { supabase } from "@/lib/supabase/client";
 
 const navItems = [
   { href: "/", label: "Dashboard" },
@@ -49,6 +51,29 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
+function LogoutButton({ onLoggedOut }: { onLoggedOut?: () => void }) {
+  const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  async function handleLogout() {
+    setIsLoggingOut(true);
+    await supabase.auth.signOut();
+    onLoggedOut?.();
+    router.replace("/auth");
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleLogout}
+      disabled={isLoggingOut}
+      className="mt-8 w-full rounded-lg border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-60"
+    >
+      {isLoggingOut ? "Signing out..." : "Sign out"}
+    </button>
+  );
+}
+
 export default function Sidebar({
   isOpen = false,
   onClose,
@@ -61,6 +86,7 @@ export default function Sidebar({
       <aside className="hidden w-64 border-r border-gray-200 bg-white p-6 md:block">
         <Brand />
         <NavLinks />
+        <LogoutButton />
       </aside>
 
       {isOpen ? (
@@ -83,6 +109,7 @@ export default function Sidebar({
             </div>
             <Brand />
             <NavLinks onNavigate={onClose} />
+            <LogoutButton onLoggedOut={onClose} />
           </aside>
         </div>
       ) : null}
