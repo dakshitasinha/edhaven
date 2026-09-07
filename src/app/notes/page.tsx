@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/AppShell";
+import { supabase } from "@/lib/supabase/client";
 
 type Note = {
   id: string;
@@ -16,29 +17,12 @@ type NoteFormState = {
   content: string;
 };
 
-const initialNotes: Note[] = [
-  {
-    id: "note-linked-list-basics",
-    title: "Linked List Basics",
-    subject: "Data Structures",
-    content:
-      "A linked list is a linear data structure made up of nodes. Each node stores data and a reference to the next node.",
-  },
-  {
-    id: "note-sql-select-queries",
-    title: "SQL SELECT Queries",
-    subject: "Database Management",
-    content:
-      "SELECT is used to retrieve data from one or more tables. Use WHERE to filter rows and ORDER BY to sort results.",
-  },
-  {
-    id: "note-go-back-n",
-    title: "Go-Back-N Protocol",
-    subject: "Computer Networks",
-    content:
-      "Go-Back-N is a sliding window protocol where the sender can transmit multiple frames before receiving acknowledgements.",
-  },
-];
+type NoteRow = {
+  id: string;
+  subject: string | null;
+  title: string;
+  content: string;
+};
 
 const emptyForm: NoteFormState = {
   title: "",
@@ -51,7 +35,9 @@ function getPreview(content: string) {
 }
 
 export default function NotesPage() {
-  const [notes, setNotes] = useState<Note[]>(initialNotes);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -60,6 +46,59 @@ export default function NotesPage() {
   const [form, setForm] = useState<NoteFormState>(emptyForm);
   const [formError, setFormError] = useState("");
   const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadNotes() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        if (isMounted) {
+          setError("Please sign in to view your notes.");
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      const { data, error: fetchError } = await supabase
+        .from("notes")
+        .select("id, subject, title, content")
+        .eq("user_id", user.id)
+        .order("updated_at", { ascending: false });
+
+      if (!isMounted) return;
+
+      if (fetchError) {
+        setError("We couldn't load your notes. Please try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      setNotes(
+        (data as NoteRow[]).map((note) => ({
+          id: note.id,
+          title: note.title,
+          subject: note.subject || "General",
+          content: note.content,
+        })),
+      );
+      setIsLoading(false);
+    }
+
+    loadNotes().catch(() => {
+      if (isMounted) {
+        setError("We couldn't load your notes. Please try again.");
+        setIsLoading(false);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const filteredNotes = useMemo(() => {
     const normalizedQuery = search.trim().toLowerCase();
@@ -97,7 +136,7 @@ export default function NotesPage() {
     setFormError("");
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const trimmedTitle = form.title.trim();
     const trimmedContent = form.content.trim();
 
@@ -106,7 +145,32 @@ export default function NotesPage() {
       return;
     }
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setFormError("Please sign in to save this note.");
+      return;
+    }
+
     if (editingNoteId) {
+      const { error: updateError } = await supabase
+        .from("notes")
+        .update({
+          title: trimmedTitle,
+          subject: form.subject.trim() || null,
+          content: trimmedContent,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", editingNoteId)
+        .eq("user_id", user.id);
+
+      if (updateError) {
+        setFormError("We couldn't update this note. Please try again.");
+        return;
+      }
+
       setNotes((currentNotes) =>
         currentNotes.map((note) =>
           note.id === editingNoteId
@@ -120,11 +184,28 @@ export default function NotesPage() {
         ),
       );
     } else {
+      const { data, error: insertError } = await supabase
+        .from("notes")
+        .insert({
+          user_id: user.id,
+          title: trimmedTitle,
+          subject: form.subject.trim() || null,
+          content: trimmedContent,
+        })
+        .select("id, subject, title, content")
+        .single();
+
+      if (insertError || !data) {
+        setFormError("We couldn't create this note. Please try again.");
+        return;
+      }
+
+      const note = data as NoteRow;
       const newNote: Note = {
-        id: `note-${Date.now()}`,
-        title: trimmedTitle,
-        subject: form.subject.trim() || "General",
-        content: trimmedContent,
+        id: note.id,
+        title: note.title,
+        subject: note.subject || "General",
+        content: note.content,
       };
 
       setNotes((currentNotes) => [newNote, ...currentNotes]);
@@ -133,7 +214,7 @@ export default function NotesPage() {
     closeModal();
   };
 
-  const handleDelete = (noteId: string) => {
+  const handleDelete = async (noteId: string) => {
     const noteToDelete = notes.find((note) => note.id === noteId);
 
     if (!noteToDelete) return;
@@ -143,6 +224,26 @@ export default function NotesPage() {
     );
 
     if (!confirmed) return;
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setError("Please sign in to delete this note.");
+      return;
+    }
+
+    const { error: deleteError } = await supabase
+      .from("notes")
+      .delete()
+      .eq("id", noteId)
+      .eq("user_id", user.id);
+
+    if (deleteError) {
+      setError("We couldn't delete this note. Please try again.");
+      return;
+    }
 
     setNotes((currentNotes) => currentNotes.filter((note) => note.id !== noteId));
     setDeletingNoteId(null);
@@ -184,7 +285,17 @@ export default function NotesPage() {
           />
         </div>
 
-        {filteredNotes.length > 0 ? (
+        {error ? (
+          <p className="mb-6 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600">
+            {error}
+          </p>
+        ) : null}
+
+        {isLoading ? (
+          <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center">
+            <p className="text-sm text-gray-500">Loading notes...</p>
+          </div>
+        ) : filteredNotes.length > 0 ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {filteredNotes.map((note) => (
               <article
