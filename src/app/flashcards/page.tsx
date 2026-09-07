@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/AppShell";
+import { supabase } from "@/lib/supabase/client";
 
 type Flashcard = {
   id: string;
@@ -29,35 +30,18 @@ const subjectFilters: SubjectFilter[] = [
   "Computer Networks",
 ];
 
-const initialFlashcards: Flashcard[] = [
-  {
-    id: "fc-linked-list",
-    question: "What is a linked list?",
-    answer:
-      "A linear data structure made of nodes where each node contains data and a reference to the next node.",
-    subject: "Data Structures",
-  },
-  {
-    id: "fc-sql-select",
-    question: "What does SQL SELECT do?",
-    answer: "It retrieves data from one or more database tables.",
-    subject: "Database Management",
-  },
-  {
-    id: "fc-go-back-n",
-    question: "What is Go-Back-N?",
-    answer:
-      "A sliding window protocol where the sender can transmit multiple frames before receiving acknowledgements.",
-    subject: "Computer Networks",
-  },
-  {
-    id: "fc-hamming-code",
-    question: "What is Hamming Code used for?",
-    answer:
-      "It is used for detecting and correcting certain errors in transmitted data.",
-    subject: "Computer Networks",
-  },
-];
+type FlashcardSetRow = {
+  id: string;
+  subject: string | null;
+  title: string;
+};
+
+type FlashcardRow = {
+  id: string;
+  set_id: string;
+  question: string;
+  answer: string;
+};
 
 const emptyForm: FlashcardForm = {
   question: "",
@@ -66,13 +50,85 @@ const emptyForm: FlashcardForm = {
 };
 
 export default function FlashcardsPage() {
-  const [flashcards, setFlashcards] = useState<Flashcard[]>(initialFlashcards);
+  const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
   const [activeSubject, setActiveSubject] = useState<SubjectFilter>("All");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<FlashcardForm>(emptyForm);
   const [formError, setFormError] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadFlashcards() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        if (isMounted) {
+          setError("Please sign in to view your flashcards.");
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      const [setsResult, cardsResult] = await Promise.all([
+        supabase
+          .from("flashcard_sets")
+          .select("id, subject, title")
+          .eq("user_id", user.id),
+        supabase
+          .from("flashcards")
+          .select("id, set_id, question, answer")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: true }),
+      ]);
+
+      if (!isMounted) return;
+
+      if (setsResult.error || cardsResult.error) {
+        setError("We couldn't load your flashcards. Please try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      const sets = setsResult.data as FlashcardSetRow[];
+      const cards = cardsResult.data as FlashcardRow[];
+      const setsById = new Map(sets.map((set) => [set.id, set]));
+
+      setFlashcards(
+        cards
+          .map((card) => {
+            const set = setsById.get(card.set_id);
+            if (!set) return null;
+
+            return {
+              id: card.id,
+              question: card.question,
+              answer: card.answer,
+              subject: set.subject || set.title,
+            };
+          })
+          .filter((card): card is Flashcard => card !== null),
+      );
+      setIsLoading(false);
+    }
+
+    loadFlashcards().catch(() => {
+      if (isMounted) {
+        setError("We couldn't load your flashcards. Please try again.");
+        setIsLoading(false);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const filteredFlashcards = useMemo(() => {
     if (activeSubject === "All") return flashcards;
@@ -98,7 +154,7 @@ export default function FlashcardsPage() {
     setFormError("");
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     const trimmedQuestion = form.question.trim();
     const trimmedAnswer = form.answer.trim();
     const trimmedSubject = form.subject.trim();
@@ -108,17 +164,74 @@ export default function FlashcardsPage() {
       return;
     }
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setFormError("Please sign in to create a flashcard.");
+      return;
+    }
+
+    const { data: existingSet, error: setLookupError } = await supabase
+      .from("flashcard_sets")
+      .select("id, subject, title")
+      .eq("user_id", user.id)
+      .eq("subject", trimmedSubject)
+      .maybeSingle();
+
+    if (setLookupError) {
+      setFormError("We couldn't create this flashcard. Please try again.");
+      return;
+    }
+
+    let flashcardSet = existingSet as FlashcardSetRow | null;
+
+    if (!flashcardSet) {
+      const { data: createdSet, error: createSetError } = await supabase
+        .from("flashcard_sets")
+        .insert({
+          user_id: user.id,
+          subject: trimmedSubject,
+          title: trimmedSubject,
+        })
+        .select("id, subject, title")
+        .single();
+
+      if (createSetError || !createdSet) {
+        setFormError("We couldn't create this flashcard. Please try again.");
+        return;
+      }
+
+      flashcardSet = createdSet as FlashcardSetRow;
+    }
+
+    const { data: createdCard, error: createCardError } = await supabase
+      .from("flashcards")
+      .insert({
+        set_id: flashcardSet.id,
+        user_id: user.id,
+        question: trimmedQuestion,
+        answer: trimmedAnswer,
+      })
+      .select("id, set_id, question, answer")
+      .single();
+
+    if (createCardError || !createdCard) {
+      setFormError("We couldn't create this flashcard. Please try again.");
+      return;
+    }
+
     const newCard: Flashcard = {
-      id: `card-${Date.now()}`,
-      question: trimmedQuestion,
-      answer: trimmedAnswer,
-      subject: trimmedSubject,
+      id: createdCard.id,
+      question: createdCard.question,
+      answer: createdCard.answer,
+      subject: flashcardSet.subject || flashcardSet.title,
     };
 
     const nextFlashcards = [...flashcards, newCard];
     setFlashcards(nextFlashcards);
 
-    const nextSubject = trimmedSubject as Exclude<SubjectFilter, "All">;
     const nextFiltered =
       activeSubject === "All" || trimmedSubject === activeSubject
         ? nextFlashcards
@@ -126,13 +239,12 @@ export default function FlashcardsPage() {
 
     const newIndex = nextFiltered.findIndex((card) => card.id === newCard.id);
 
-    setActiveSubject(activeSubject === "All" || trimmedSubject === activeSubject ? activeSubject : activeSubject);
     setCurrentIndex(newIndex >= 0 ? newIndex : 0);
     setShowAnswer(false);
     closeModal();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!activeCard) return;
 
     const confirmed = window.confirm(
@@ -140,6 +252,16 @@ export default function FlashcardsPage() {
     );
 
     if (!confirmed) return;
+
+    const { error: deleteError } = await supabase
+      .from("flashcards")
+      .delete()
+      .eq("id", activeCard.id);
+
+    if (deleteError) {
+      setError("We couldn't delete this flashcard. Please try again.");
+      return;
+    }
 
     const remainingCards = flashcards.filter((card) => card.id !== activeCard.id);
     setFlashcards(remainingCards);
@@ -202,7 +324,17 @@ export default function FlashcardsPage() {
           </button>
         </header>
 
-        {flashcards.length > 0 ? (
+        {error ? (
+          <p className="mb-6 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600">
+            {error}
+          </p>
+        ) : null}
+
+        {isLoading ? (
+          <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center">
+            <p className="text-sm text-gray-500">Loading flashcards...</p>
+          </div>
+        ) : flashcards.length > 0 ? (
           <>
             <div className="mb-6 flex flex-wrap gap-2">
               {subjectFilters.map((subject) => {
