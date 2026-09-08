@@ -13,6 +13,21 @@ type ModeConfig = {
 
 type TimerDurations = Record<FocusMode, number>;
 
+type GoalTaskRow = {
+  id: string;
+  goal_id: string;
+  title: string;
+  completed: boolean;
+};
+
+type FocusTask = {
+  id: string;
+  title: string;
+  completed: boolean;
+  source: "goal" | "temporary";
+  goalId?: string;
+};
+
 const timerSettingsStorageKey = "edhaven-focus-room-timer-settings";
 
 const modeConfig: Record<FocusMode, ModeConfig> = {
@@ -38,7 +53,11 @@ export default function FocusRoomPage() {
     modeConfig.Focus.minutes * 60,
   );
   const [isRunning, setIsRunning] = useState(false);
-  const [goalCompleted, setGoalCompleted] = useState(false);
+  const [focusTasks, setFocusTasks] = useState<FocusTask[]>([]);
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskLoading, setTaskLoading] = useState(true);
+  const [taskError, setTaskError] = useState<string | null>(null);
   const [timerDurations, setTimerDurations] = useState<TimerDurations>({
     Focus: modeConfig.Focus.minutes,
     "Short Break": modeConfig["Short Break"].minutes,
@@ -68,6 +87,161 @@ export default function FocusRoomPage() {
     () => timerDurations[activeMode],
     [activeMode, timerDurations],
   );
+
+  const activeTask = focusTasks.find((task) => task.id === activeTaskId) || null;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadGoalTasks() {
+      setTaskLoading(true);
+      setTaskError(null);
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        if (isMounted) {
+          setTaskError("Please sign in to load your Goal tasks.");
+          setTaskLoading(false);
+        }
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("id, goal_id, title, completed")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: true });
+
+      if (!isMounted) return;
+
+      if (error) {
+        setTaskError("We couldn't load your Goal tasks. Please try again.");
+        setTaskLoading(false);
+        return;
+      }
+
+      const loadedTasks = (data as GoalTaskRow[]).map((task) => ({
+        id: task.id,
+        title: task.title,
+        completed: task.completed,
+        source: "goal" as const,
+        goalId: task.goal_id,
+      }));
+
+      setFocusTasks(loadedTasks);
+      setActiveTaskId(loadedTasks[0]?.id || null);
+      setTaskLoading(false);
+    }
+
+    loadGoalTasks().catch(() => {
+      if (isMounted) {
+        setTaskError("We couldn't load your Goal tasks. Please try again.");
+        setTaskLoading(false);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  async function toggleActiveTask() {
+    if (!activeTask) return;
+
+    const nextCompleted = !activeTask.completed;
+
+    if (activeTask.source === "temporary") {
+      setFocusTasks((currentTasks) =>
+        currentTasks.map((task) =>
+          task.id === activeTask.id
+            ? { ...task, completed: nextCompleted }
+            : task,
+        ),
+      );
+      return;
+    }
+
+    setTaskError(null);
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user || !activeTask.goalId) {
+      setTaskError("Please sign in to update this Goal task.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("tasks")
+      .update({ completed: nextCompleted })
+      .eq("id", activeTask.id)
+      .eq("goal_id", activeTask.goalId)
+      .eq("user_id", user.id);
+
+    if (error) {
+      setTaskError("We couldn't update this Goal task. Please try again.");
+      return;
+    }
+
+    setFocusTasks((currentTasks) =>
+      currentTasks.map((task) =>
+        task.id === activeTask.id
+          ? { ...task, completed: nextCompleted }
+          : task,
+      ),
+    );
+  }
+
+  function addTemporaryTask(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const title = taskTitle.trim();
+    if (!title) return;
+
+    const temporaryTask: FocusTask = {
+      id: `temporary-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      title,
+      completed: false,
+      source: "temporary",
+    };
+
+    setFocusTasks((currentTasks) => [...currentTasks, temporaryTask]);
+    setActiveTaskId(temporaryTask.id);
+    setTaskTitle("");
+  }
+
+  function removeTask(taskId: string) {
+    setFocusTasks((currentTasks) => {
+      const taskIndex = currentTasks.findIndex((task) => task.id === taskId);
+      const nextTasks = currentTasks.filter((task) => task.id !== taskId);
+
+      if (activeTaskId === taskId) {
+        setActiveTaskId(
+          nextTasks[Math.min(taskIndex, nextTasks.length - 1)]?.id || null,
+        );
+      }
+
+      return nextTasks;
+    });
+  }
+
+  function clearCompletedTasks() {
+    setFocusTasks((currentTasks) => {
+      const nextTasks = currentTasks.filter((task) => !task.completed);
+
+      if (activeTask?.completed) {
+        setActiveTaskId(nextTasks[0]?.id || null);
+      }
+
+      return nextTasks;
+    });
+  }
 
   useEffect(() => {
     const storedSettings = window.localStorage.getItem(timerSettingsStorageKey);
@@ -399,26 +573,97 @@ export default function FocusRoomPage() {
                 Today&apos;s focus
               </p>
 
-              <div className="mt-4 flex items-start gap-3">
-                <input
-                  id="today-focus-goal"
-                  type="checkbox"
-                  checked={goalCompleted}
-                  onChange={(event) => setGoalCompleted(event.target.checked)}
-                  className="mt-1 h-4 w-4 rounded border-gray-300 accent-gray-900"
-                />
+              {taskLoading ? (
+                <p className="mt-4 text-sm text-gray-500">Loading tasks...</p>
+              ) : (
+                <>
+                  {focusTasks.length > 0 ? (
+                    <label className="mt-4 block text-sm text-gray-700">
+                      <span className="sr-only">Select a focus task</span>
+                      <select
+                        value={activeTaskId || ""}
+                        onChange={(event) => setActiveTaskId(event.target.value)}
+                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900"
+                      >
+                        {focusTasks.map((task) => (
+                          <option key={task.id} value={task.id}>
+                            {task.source === "temporary" ? "Temporary: " : "Goal: "}
+                            {task.title}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : (
+                    <p className="mt-4 text-sm text-gray-500">
+                      No Goal tasks yet. Add a temporary focus task below.
+                    </p>
+                  )}
 
-                <label
-                  htmlFor="today-focus-goal"
-                  className={
-                    goalCompleted
-                      ? "text-sm text-gray-400 line-through"
-                      : "text-sm text-gray-700"
-                  }
-                >
-                  Complete 5 linked list problems
-                </label>
-              </div>
+                  {activeTask ? (
+                    <div className="mt-4 flex items-start justify-between gap-3">
+                      <label
+                        htmlFor="active-focus-task"
+                        className={`flex items-start gap-3 text-sm ${
+                          activeTask.completed
+                            ? "text-gray-400 line-through"
+                            : "text-gray-700"
+                        }`}
+                      >
+                        <input
+                          id="active-focus-task"
+                          type="checkbox"
+                          checked={activeTask.completed}
+                          onChange={() => void toggleActiveTask()}
+                          className="mt-1 h-4 w-4 rounded border-gray-300 accent-gray-900"
+                        />
+                        <span>{activeTask.title}</span>
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() => removeTask(activeTask.id)}
+                        className="shrink-0 text-xs text-gray-400 hover:text-gray-700"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : null}
+
+                  <form onSubmit={addTemporaryTask} className="mt-4 flex gap-2">
+                    <label htmlFor="temporary-focus-task" className="sr-only">
+                      Temporary focus task
+                    </label>
+                    <input
+                      id="temporary-focus-task"
+                      type="text"
+                      value={taskTitle}
+                      onChange={(event) => setTaskTitle(event.target.value)}
+                      placeholder="Add a temporary task"
+                      className="min-w-0 flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-400"
+                    />
+                    <button
+                      type="submit"
+                      className="rounded-xl bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800"
+                    >
+                      Add
+                    </button>
+                  </form>
+
+                  {focusTasks.some((task) => task.completed) ? (
+                    <button
+                      type="button"
+                      onClick={clearCompletedTasks}
+                      className="mt-3 text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      Clear completed
+                    </button>
+                  ) : null}
+                </>
+              )}
+
+              {taskError ? (
+                <p className="mt-3 text-sm text-red-600">{taskError}</p>
+              ) : null}
             </div>
 
             <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">

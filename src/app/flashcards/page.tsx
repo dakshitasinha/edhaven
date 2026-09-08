@@ -6,9 +6,9 @@ import { supabase } from "@/lib/supabase/client";
 
 type Flashcard = {
   id: string;
+  setId: string;
   question: string;
   answer: string;
-  subject: string;
 };
 
 type FlashcardForm = {
@@ -16,19 +16,6 @@ type FlashcardForm = {
   answer: string;
   subject: string;
 };
-
-type SubjectFilter =
-  | "All"
-  | "Data Structures"
-  | "Database Management"
-  | "Computer Networks";
-
-const subjectFilters: SubjectFilter[] = [
-  "All",
-  "Data Structures",
-  "Database Management",
-  "Computer Networks",
-];
 
 type FlashcardSetRow = {
   id: string;
@@ -43,6 +30,22 @@ type FlashcardRow = {
   answer: string;
 };
 
+type FlashcardSet = FlashcardSetRow & {
+  cardCount: number;
+};
+
+type Note = {
+  id: string;
+  title: string;
+  subject: string;
+  content: string;
+};
+
+type GeneratedFlashcard = {
+  question: string;
+  answer: string;
+};
+
 const emptyForm: FlashcardForm = {
   question: "",
   answer: "",
@@ -50,15 +53,28 @@ const emptyForm: FlashcardForm = {
 };
 
 export default function FlashcardsPage() {
+  const [flashcardSets, setFlashcardSets] = useState<FlashcardSet[]>([]);
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const [activeSubject, setActiveSubject] = useState<SubjectFilter>("All");
+  const [search, setSearch] = useState("");
+  const [selectedSetId, setSelectedSetId] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<FlashcardForm>(emptyForm);
   const [formError, setFormError] = useState("");
+  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [selectedNoteId, setSelectedNoteId] = useState("");
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [generatedFlashcards, setGeneratedFlashcards] = useState<
+    GeneratedFlashcard[]
+  >([]);
+  const [flashcardsLoading, setFlashcardsLoading] = useState(false);
+  const [flashcardsError, setFlashcardsError] = useState("");
+  const [flashcardsSaveSuccess, setFlashcardsSaveSuccess] = useState("");
+  const [setDeleteSuccess, setSetDeleteSuccess] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -100,19 +116,24 @@ export default function FlashcardsPage() {
       const cards = cardsResult.data as FlashcardRow[];
       const setsById = new Map(sets.map((set) => [set.id, set]));
 
+      setFlashcardSets(
+        sets.map((set) => ({
+          ...set,
+          cardCount: cards.filter((card) => card.set_id === set.id).length,
+        })),
+      );
       setFlashcards(
         cards
-          .map((card) => {
-            const set = setsById.get(card.set_id);
-            if (!set) return null;
-
-            return {
-              id: card.id,
-              question: card.question,
-              answer: card.answer,
-              subject: set.subject || set.title,
-            };
-          })
+          .map((card) =>
+            setsById.has(card.set_id)
+              ? {
+                  id: card.id,
+                  setId: card.set_id,
+                  question: card.question,
+                  answer: card.answer,
+                }
+              : null,
+          )
           .filter((card): card is Flashcard => card !== null),
       );
       setIsLoading(false);
@@ -130,17 +151,35 @@ export default function FlashcardsPage() {
     };
   }, []);
 
-  const filteredFlashcards = useMemo(() => {
-    if (activeSubject === "All") return flashcards;
-    return flashcards.filter((card) => card.subject === activeSubject);
-  }, [activeSubject, flashcards]);
+  const visibleSets = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    return flashcardSets.filter((set) => {
+      if (!normalizedSearch) return true;
+
+      const setCards = flashcards.filter((card) => card.setId === set.id);
+      return [
+        set.subject || "",
+        set.title,
+        ...setCards.flatMap((card) => [card.question, card.answer]),
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedSearch);
+    });
+  }, [flashcardSets, flashcards, search]);
+
+  const selectedSet = flashcardSets.find((set) => set.id === selectedSetId) || null;
+  const selectedSetCards = selectedSetId
+    ? flashcards.filter((card) => card.setId === selectedSetId)
+    : [];
 
   const safeCurrentIndex =
-    filteredFlashcards.length === 0
+    selectedSetCards.length === 0
       ? 0
-      : Math.min(currentIndex, filteredFlashcards.length - 1);
+      : Math.min(currentIndex, selectedSetCards.length - 1);
 
-  const activeCard = filteredFlashcards[safeCurrentIndex] ?? null;
+  const activeCard = selectedSetCards[safeCurrentIndex] ?? null;
 
   const openCreateModal = () => {
     setForm(emptyForm);
@@ -224,22 +263,30 @@ export default function FlashcardsPage() {
 
     const newCard: Flashcard = {
       id: createdCard.id,
+      setId: createdCard.set_id,
       question: createdCard.question,
       answer: createdCard.answer,
-      subject: flashcardSet.subject || flashcardSet.title,
     };
 
     const nextFlashcards = [...flashcards, newCard];
     setFlashcards(nextFlashcards);
-
-    const nextFiltered =
-      activeSubject === "All" || trimmedSubject === activeSubject
-        ? nextFlashcards
-        : nextFlashcards.filter((card) => card.subject === activeSubject);
-
-    const newIndex = nextFiltered.findIndex((card) => card.id === newCard.id);
-
-    setCurrentIndex(newIndex >= 0 ? newIndex : 0);
+    setFlashcardSets((currentSets) =>
+      currentSets.some((set) => set.id === flashcardSet.id)
+        ? currentSets.map((set) =>
+            set.id === flashcardSet.id
+              ? { ...set, cardCount: set.cardCount + 1 }
+              : set,
+          )
+        : [
+            ...currentSets,
+            {
+              ...flashcardSet,
+              cardCount: 1,
+            },
+          ],
+    );
+    setSelectedSetId(flashcardSet.id);
+    setCurrentIndex(selectedSetCards.length);
     setShowAnswer(false);
     closeModal();
   };
@@ -265,41 +312,267 @@ export default function FlashcardsPage() {
 
     const remainingCards = flashcards.filter((card) => card.id !== activeCard.id);
     setFlashcards(remainingCards);
+    setFlashcardSets((currentSets) =>
+      currentSets.map((set) =>
+        set.id === activeCard.setId
+          ? { ...set, cardCount: Math.max(0, set.cardCount - 1) }
+          : set,
+      ),
+    );
     setShowAnswer(false);
 
-    if (remainingCards.length === 0) {
-      setCurrentIndex(0);
-      return;
-    }
-
-    const nextFiltered =
-      activeSubject === "All"
-        ? remainingCards
-        : remainingCards.filter((card) => card.subject === activeSubject);
-
-    if (nextFiltered.length === 0) {
-      setCurrentIndex(0);
-      setActiveSubject("All");
-      return;
-    }
-
-    const nextIndex = Math.max(
-      0,
-      Math.min(safeCurrentIndex, nextFiltered.length - 1),
+    const nextSetCards = remainingCards.filter(
+      (card) => card.setId === activeCard.setId,
     );
-    setCurrentIndex(nextIndex);
+
+    if (nextSetCards.length === 0) {
+      setCurrentIndex(0);
+      setSelectedSetId(null);
+      return;
+    }
+    setCurrentIndex(Math.min(safeCurrentIndex, nextSetCards.length - 1));
+  };
+
+  const handleDeleteSet = async (set: FlashcardSet) => {
+    const confirmed = window.confirm(
+      `Delete the set "${set.title}" and all of its flashcards? This action cannot be undone.`,
+    );
+
+    if (!confirmed) return;
+
+    setError("");
+    setSetDeleteSuccess("");
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      setError("Please sign in to delete this flashcard set.");
+      return;
+    }
+
+    const { error: cardsDeleteError } = await supabase
+      .from("flashcards")
+      .delete()
+      .eq("set_id", set.id)
+      .eq("user_id", user.id);
+
+    if (cardsDeleteError) {
+      setError("We couldn't delete the flashcards in this set. Please try again.");
+      return;
+    }
+
+    const { error: setDeleteError } = await supabase
+      .from("flashcard_sets")
+      .delete()
+      .eq("id", set.id)
+      .eq("user_id", user.id);
+
+    if (setDeleteError) {
+      setError("We couldn't delete this flashcard set. Please try again.");
+      return;
+    }
+
+    setFlashcardSets((currentSets) =>
+      currentSets.filter((currentSet) => currentSet.id !== set.id),
+    );
+    setFlashcards((currentCards) =>
+      currentCards.filter((card) => card.setId !== set.id),
+    );
+
+    if (selectedSetId === set.id) {
+      setSelectedSetId(null);
+      setCurrentIndex(0);
+      setShowAnswer(false);
+    }
+
+    setSetDeleteSuccess(`Deleted set "${set.title}".`);
   };
 
   const goToPrevious = () => {
-    if (filteredFlashcards.length === 0) return;
+    if (selectedSetCards.length === 0) return;
     setShowAnswer(false);
     setCurrentIndex((previous) => Math.max(0, previous - 1));
   };
 
   const goToNext = () => {
-    if (filteredFlashcards.length === 0) return;
+    if (selectedSetCards.length === 0) return;
     setShowAnswer(false);
-    setCurrentIndex((previous) => Math.min(filteredFlashcards.length - 1, previous + 1));
+    setCurrentIndex((previous) =>
+      Math.min(selectedSetCards.length - 1, previous + 1),
+    );
+  };
+
+  const openGenerateModal = async () => {
+    setIsGenerateModalOpen(true);
+    setSelectedNoteId("");
+    setGeneratedFlashcards([]);
+    setFlashcardsError("");
+    setFlashcardsSaveSuccess("");
+    setNotesLoading(true);
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      setFlashcardsError("Please sign in to generate flashcards.");
+      setNotesLoading(false);
+      return;
+    }
+
+    const { data, error: notesError } = await supabase
+      .from("notes")
+      .select("id, title, subject, content")
+      .eq("user_id", user.id)
+      .order("updated_at", { ascending: false });
+
+    if (notesError) {
+      setFlashcardsError("We couldn't load your notes. Please try again.");
+    } else {
+      setNotes((data as Note[]) || []);
+    }
+    setNotesLoading(false);
+  };
+
+  const closeGenerateModal = () => {
+    setIsGenerateModalOpen(false);
+    setSelectedNoteId("");
+    setGeneratedFlashcards([]);
+    setFlashcardsLoading(false);
+    setFlashcardsError("");
+    setFlashcardsSaveSuccess("");
+  };
+
+  const handleGenerateFlashcards = async () => {
+    const note = notes.find((currentNote) => currentNote.id === selectedNoteId);
+    if (!note) return;
+
+    setFlashcardsLoading(true);
+    setFlashcardsError("");
+    setFlashcardsSaveSuccess("");
+
+    try {
+      const response = await fetch("/api/ai/flashcards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: note.content }),
+      });
+      const data = (await response.json()) as {
+        flashcards?: GeneratedFlashcard[];
+        error?: string;
+      };
+
+      if (!response.ok || !data.flashcards?.length) {
+        throw new Error(data.error || "Unable to generate flashcards.");
+      }
+
+      setGeneratedFlashcards(data.flashcards);
+    } catch (generationError) {
+      setFlashcardsError(
+        generationError instanceof Error
+          ? generationError.message
+          : "Unable to generate flashcards.",
+      );
+    } finally {
+      setFlashcardsLoading(false);
+    }
+  };
+
+  const handleSaveGeneratedFlashcards = async () => {
+    const note = notes.find((currentNote) => currentNote.id === selectedNoteId);
+    if (!note || generatedFlashcards.length === 0) return;
+
+    setFlashcardsLoading(true);
+    setFlashcardsError("");
+    setFlashcardsSaveSuccess("");
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      setFlashcardsError("Please sign in to save these flashcards.");
+      setFlashcardsLoading(false);
+      return;
+    }
+
+    const { data: existingSet, error: setLookupError } = await supabase
+      .from("flashcard_sets")
+      .select("id, subject, title")
+      .eq("user_id", user.id)
+      .eq("subject", note.subject)
+      .maybeSingle();
+
+    if (setLookupError) {
+      setFlashcardsError("We couldn't prepare the flashcard set. Please try again.");
+      setFlashcardsLoading(false);
+      return;
+    }
+
+    let flashcardSet = existingSet as FlashcardSetRow | null;
+    if (!flashcardSet) {
+      const { data: createdSet, error: createSetError } = await supabase
+        .from("flashcard_sets")
+        .insert({
+          user_id: user.id,
+          subject: note.subject,
+          title: note.title,
+        })
+        .select("id, subject, title")
+        .single();
+
+      if (createSetError || !createdSet) {
+        setFlashcardsError("We couldn't create the flashcard set. Please try again.");
+        setFlashcardsLoading(false);
+        return;
+      }
+      flashcardSet = createdSet as FlashcardSetRow;
+    }
+
+    const { data: createdCards, error: createCardsError } = await supabase
+      .from("flashcards")
+      .insert(
+        generatedFlashcards.map((card) => ({
+          set_id: flashcardSet.id,
+          user_id: user.id,
+          question: card.question,
+          answer: card.answer,
+        })),
+      )
+      .select("id, set_id, question, answer");
+
+    if (createCardsError || !createdCards) {
+      setFlashcardsError("We couldn't save the flashcards. Please try again.");
+      setFlashcardsLoading(false);
+      return;
+    }
+
+    setFlashcards((currentCards) => [
+      ...currentCards,
+      ...createdCards.map((card) => ({
+        id: card.id,
+        setId: card.set_id,
+        question: card.question,
+        answer: card.answer,
+      })),
+    ]);
+    setFlashcardSets((currentSets) =>
+      currentSets.some((set) => set.id === flashcardSet.id)
+        ? currentSets.map((set) =>
+            set.id === flashcardSet.id
+              ? { ...set, cardCount: set.cardCount + createdCards.length }
+              : set,
+          )
+        : [...currentSets, { ...flashcardSet, cardCount: createdCards.length }],
+    );
+    setGeneratedFlashcards([]);
+    setFlashcardsSaveSuccess("Flashcards saved successfully.");
+    setFlashcardsLoading(false);
   };
 
   return (
@@ -330,58 +603,51 @@ export default function FlashcardsPage() {
           </p>
         ) : null}
 
+        {setDeleteSuccess ? (
+          <p className="mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            {setDeleteSuccess}
+          </p>
+        ) : null}
+
         {isLoading ? (
           <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center">
-            <p className="text-sm text-gray-500">Loading flashcards...</p>
+            <p className="text-sm text-gray-500">Loading flashcard sets...</p>
           </div>
-        ) : flashcards.length > 0 ? (
-          <>
-            <div className="mb-6 flex flex-wrap gap-2">
-              {subjectFilters.map((subject) => {
-                const isSelected = activeSubject === subject;
-
-                return (
-                  <button
-                    key={subject}
-                    type="button"
-                    onClick={() => {
-                      setActiveSubject(subject);
-                      setCurrentIndex(0);
-                      setShowAnswer(false);
-                    }}
-                    className={
-                      isSelected
-                        ? "rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white"
-                        : "rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
-                    }
-                  >
-                    {subject}
-                  </button>
-                );
-              })}
+        ) : selectedSet ? (
+          <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm md:p-8">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-gray-500">{selectedSet.subject || "General"}</p>
+                <h2 className="mt-1 text-2xl font-bold text-gray-900">{selectedSet.title}</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedSetId(null);
+                  setCurrentIndex(0);
+                  setShowAnswer(false);
+                }}
+                className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Back to Saved Sets
+              </button>
             </div>
 
             {activeCard ? (
-              <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm md:p-8">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-                    {activeCard.subject}
-                  </span>
-
-                  <span className="text-sm text-gray-500">
-                    {filteredFlashcards.length > 0
-                      ? `${safeCurrentIndex + 1} / ${filteredFlashcards.length}`
-                      : "0 / 0"}
-                  </span>
-                </div>
-
-                <div className="mt-8 rounded-2xl border border-gray-200 bg-gray-50 p-6 md:p-8">
+              <>
+                <div className="mt-8 flex items-center justify-between gap-3">
                   <p className="text-sm font-medium uppercase tracking-[0.08em] text-gray-500">
                     Question
                   </p>
-                  <h2 className="mt-3 text-2xl font-semibold text-gray-900 md:text-3xl">
+                  <span className="text-sm text-gray-500">
+                    {safeCurrentIndex + 1} / {selectedSetCards.length}
+                  </span>
+                </div>
+
+                <div className="mt-3 rounded-2xl border border-gray-200 bg-gray-50 p-6 md:p-8">
+                  <h3 className="text-2xl font-semibold text-gray-900 md:text-3xl">
                     {activeCard.question}
-                  </h2>
+                  </h3>
                 </div>
 
                 {showAnswer ? (
@@ -404,7 +670,6 @@ export default function FlashcardsPage() {
                     >
                       {showAnswer ? "Hide Answer" : "Show Answer"}
                     </button>
-
                     <button
                       type="button"
                       onClick={handleDelete}
@@ -413,7 +678,6 @@ export default function FlashcardsPage() {
                       Delete
                     </button>
                   </div>
-
                   <div className="flex gap-3">
                     <button
                       type="button"
@@ -423,33 +687,118 @@ export default function FlashcardsPage() {
                     >
                       Previous
                     </button>
-
                     <button
                       type="button"
                       onClick={goToNext}
-                      disabled={safeCurrentIndex >= filteredFlashcards.length - 1}
+                      disabled={safeCurrentIndex >= selectedSetCards.length - 1}
                       className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Next
                     </button>
                   </div>
                 </div>
+              </>
+            ) : (
+              <p className="mt-8 text-sm text-gray-500">This set has no flashcards yet.</p>
+            )}
+          </div>
+        ) : flashcardSets.length > 0 ? (
+          <>
+            <div className="mb-6 flex flex-col gap-3 sm:flex-row">
+              <label htmlFor="flashcard-search" className="sr-only">
+                Search flashcard sets
+              </label>
+              <input
+                id="flashcard-search"
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search saved sets or cards..."
+                className="min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-700 placeholder:text-gray-400 focus:border-gray-300 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={openGenerateModal}
+                className="rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800"
+              >
+                Generate Flashcards with AI
+              </button>
+            </div>
+
+            {visibleSets.length > 0 ? (
+              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {visibleSets.map((set) => (
+                  <article
+                    key={set.id}
+                    className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+                  >
+                    <p className="text-xs font-medium uppercase tracking-[0.08em] text-gray-500">
+                      Subject
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-gray-900">
+                      {set.subject || "General"}
+                    </p>
+                    <p className="mt-6 text-xs font-medium uppercase tracking-[0.08em] text-gray-500">
+                      Topic
+                    </p>
+                    <h2 className="mt-2 text-xl font-bold text-gray-900">{set.title}</h2>
+                    <p className="mt-6 text-sm text-gray-500">
+                      {set.cardCount > 0 ? `${set.cardCount} flashcards` : "No flashcards yet"}
+                    </p>
+                    <div className="mt-6 flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedSetId(set.id);
+                          setCurrentIndex(0);
+                          setShowAnswer(false);
+                        }}
+                        disabled={set.cardCount === 0}
+                        className="w-full rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {set.cardCount > 0
+                          ? "STUDY WITH FLASHCARDS"
+                          : "No flashcards"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteSet(set)}
+                        className="w-full rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50"
+                      >
+                        Delete Set
+                      </button>
+                    </div>
+                  </article>
+                ))}
               </div>
-            ) : null}
+            ) : (
+              <p className="rounded-2xl border border-dashed border-gray-300 bg-white p-10 text-center text-sm text-gray-500">
+                No saved sets match your search.
+              </p>
+            )}
           </>
         ) : (
           <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-10 text-center">
-            <p className="text-2xl font-semibold text-gray-900">No flashcards yet</p>
+            <p className="text-2xl font-semibold text-gray-900">No flashcard sets yet</p>
             <p className="mt-2 text-sm text-gray-500">
-              Create your first flashcard to start practicing.
+              Create a flashcard or generate a set from one of your notes.
             </p>
-            <button
-              type="button"
-              onClick={openCreateModal}
-              className="mt-6 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800"
-            >
-              + Create Flashcard
-            </button>
+            <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={openCreateModal}
+                className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                + New Flashcard
+              </button>
+              <button
+                type="button"
+                onClick={openGenerateModal}
+                className="rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800"
+              >
+                Generate Flashcards with AI
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -536,6 +885,124 @@ export default function FlashcardsPage() {
                 Create Flashcard
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isGenerateModalOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4"
+          onClick={closeGenerateModal}
+        >
+          <div
+            className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-2xl font-bold text-gray-900">
+                  Generate Flashcards with AI
+                </h3>
+                <p className="mt-2 text-sm text-gray-500">
+                  Choose an existing note to create a study set.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeGenerateModal}
+                className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+
+            {notesLoading ? (
+              <p className="mt-6 text-sm text-gray-500">Loading notes...</p>
+            ) : (
+              <>
+                <label htmlFor="flashcard-note" className="mt-6 block text-sm font-medium text-gray-700">
+                  Note
+                </label>
+                <select
+                  id="flashcard-note"
+                  value={selectedNoteId}
+                  onChange={(event) => setSelectedNoteId(event.target.value)}
+                  disabled={notes.length === 0 || flashcardsLoading}
+                  className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <option value="">
+                    {notes.length === 0 ? "No notes available" : "Select a note"}
+                  </option>
+                  {notes.map((note) => (
+                    <option key={note.id} value={note.id}>
+                      {note.title} · {note.subject || "General"}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={handleGenerateFlashcards}
+                  disabled={!selectedNoteId || flashcardsLoading}
+                  className="mt-4 w-full rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {flashcardsLoading && generatedFlashcards.length === 0
+                    ? "Generating..."
+                    : "Generate Flashcards"}
+                </button>
+              </>
+            )}
+
+            {flashcardsError ? (
+              <p className="mt-4 text-sm text-red-600">{flashcardsError}</p>
+            ) : null}
+
+            {flashcardsSaveSuccess ? (
+              <p className="mt-4 text-sm text-green-700">{flashcardsSaveSuccess}</p>
+            ) : null}
+
+            {generatedFlashcards.length > 0 ? (
+              <div className="mt-6 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <h4 className="text-sm font-semibold text-gray-900">
+                    Review Generated Cards
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => setGeneratedFlashcards([])}
+                    disabled={flashcardsLoading}
+                    className="text-xs font-medium text-gray-500 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Clear Generated Cards
+                  </button>
+                </div>
+
+                {generatedFlashcards.map((card, index) => (
+                  <article
+                    key={`${card.question}-${index}`}
+                    className="rounded-xl border border-gray-200 bg-white p-4"
+                  >
+                    <p className="text-xs font-medium uppercase tracking-[0.08em] text-gray-500">
+                      Question
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-gray-900">{card.question}</p>
+                    <p className="mt-4 text-xs font-medium uppercase tracking-[0.08em] text-gray-500">
+                      Answer
+                    </p>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700">{card.answer}</p>
+                  </article>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={handleSaveGeneratedFlashcards}
+                  disabled={flashcardsLoading}
+                  className="w-full rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {flashcardsLoading ? "Saving..." : "Save to Flashcards"}
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

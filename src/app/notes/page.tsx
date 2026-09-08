@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import AppShell from "@/components/AppShell";
 import { supabase } from "@/lib/supabase/client";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 
 type Note = {
   id: string;
@@ -43,6 +47,9 @@ export default function NotesPage() {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [viewingNote, setViewingNote] = useState<Note | null>(null);
+  const [summary, setSummary] = useState("");
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState("");
   const [form, setForm] = useState<NoteFormState>(emptyForm);
   const [formError, setFormError] = useState("");
   const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
@@ -134,6 +141,46 @@ export default function NotesPage() {
     setEditingNoteId(null);
     setForm(emptyForm);
     setFormError("");
+  };
+
+  const closeViewModal = () => {
+    setIsViewModalOpen(false);
+    setSummary("");
+    setSummaryLoading(false);
+    setSummaryError("");
+  };
+
+  const handleSummarize = async () => {
+    if (!viewingNote) return;
+
+    setSummaryLoading(true);
+    setSummaryError("");
+
+    try {
+      const response = await fetch("/api/ai/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: viewingNote.content }),
+      });
+      const data = (await response.json()) as {
+        summary?: string;
+        error?: string;
+      };
+
+      if (!response.ok || !data.summary) {
+        throw new Error(data.error || "Unable to summarize this note.");
+      }
+
+      setSummary(data.summary);
+    } catch (error) {
+      setSummaryError(
+        error instanceof Error
+          ? error.message
+          : "Unable to summarize this note.",
+      );
+    } finally {
+      setSummaryLoading(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -329,6 +376,9 @@ export default function NotesPage() {
                   type="button"
                   onClick={() => {
                     setViewingNote(note);
+                    setSummary("");
+                    setSummaryLoading(false);
+                    setSummaryError("");
                     setIsViewModalOpen(true);
                   }}
                   className="mt-4 text-left"
@@ -451,10 +501,10 @@ export default function NotesPage() {
       {isViewModalOpen && viewingNote ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4"
-          onClick={() => setIsViewModalOpen(false)}
+          onClick={closeViewModal}
         >
           <div
-            className="w-full max-w-xl rounded-2xl border border-gray-200 bg-white p-6 shadow-xl"
+            className="max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
@@ -467,7 +517,7 @@ export default function NotesPage() {
 
               <button
                 type="button"
-                onClick={() => setIsViewModalOpen(false)}
+                onClick={closeViewModal}
                 className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
               >
                 Close
@@ -480,7 +530,34 @@ export default function NotesPage() {
 
             <button
               type="button"
-              onClick={() => setIsViewModalOpen(false)}
+              onClick={handleSummarize}
+              disabled={summaryLoading}
+              className="mt-6 inline-flex w-full items-center justify-center rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {summaryLoading ? "Summarizing..." : "Summarize with AI"}
+            </button>
+
+            {summaryError ? (
+              <p className="mt-3 text-sm text-red-600">{summaryError}</p>
+            ) : null}
+
+            {summary ? (
+              <div className="mt-5 rounded-xl bg-gray-50 p-4">
+                <h4 className="text-sm font-semibold text-gray-900">Summary</h4>
+                <div className="prose prose-sm mt-2 max-w-none text-gray-700">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
+                  >
+                    {summary}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={closeViewModal}
               className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800"
             >
               Close
