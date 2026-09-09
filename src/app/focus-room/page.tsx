@@ -28,6 +28,8 @@ type FocusTask = {
   goalId?: string;
 };
 
+
+
 const timerSettingsStorageKey = "edhaven-focus-room-timer-settings";
 
 const modeConfig: Record<FocusMode, ModeConfig> = {

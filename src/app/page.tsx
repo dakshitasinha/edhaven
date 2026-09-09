@@ -19,8 +19,26 @@ type GoalRow = {
 };
 
 type TaskRow = {
+  id: string;
   goal_id: string;
+  title: string;
   completed: boolean;
+};
+
+type LearningMaterialRow = {
+  id: string;
+  title: string;
+  subject: string;
+  type: string;
+  description: string | null;
+  progress: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type FlashcardSummary = {
+  cards: number;
+  decks: number;
 };
 
 type DashboardData = {
@@ -145,6 +163,13 @@ export default function Home() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(
     null,
   );
+  const [goalTasks, setGoalTasks] = useState<TaskRow[]>([]);
+  const [learningMaterial, setLearningMaterial] =
+    useState<LearningMaterialRow | null>(null);
+  const [flashcardSummary, setFlashcardSummary] =
+    useState<FlashcardSummary | null>(null);
+  const [userName, setUserName] = useState("there");
+  const [todayLabel, setTodayLabel] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -168,7 +193,19 @@ export default function Home() {
         return;
       }
 
-      const [focusSessionsResult, goalsResult, tasksResult] = await Promise.all([
+      const metadata = user.user_metadata as Record<string, unknown>;
+      const metadataName =
+        (typeof metadata.full_name === "string" && metadata.full_name) ||
+        (typeof metadata.name === "string" && metadata.name) ||
+        (typeof metadata.display_name === "string" && metadata.display_name) ||
+        (user.email ? user.email.split("@")[0] : "there");
+      setUserName(metadataName.split(" ")[0] || "there");
+
+      const [
+        [focusSessionsResult, goalsResult, tasksResult],
+        [learningMaterialResult, flashcardSetsResult, flashcardsResult],
+      ] = await Promise.all([
+        Promise.all([
         supabase
           .from("focus_sessions")
           .select("duration_minutes, completed_at")
@@ -181,8 +218,28 @@ export default function Home() {
           .order("created_at", { ascending: false }),
         supabase
           .from("tasks")
-          .select("goal_id, completed")
+          .select("id, goal_id, title, completed")
           .eq("user_id", user.id),
+        ]),
+        Promise.all([
+          supabase
+            .from("learning_materials")
+            .select(
+              "id, title, subject, type, description, progress, created_at, updated_at",
+            )
+            .eq("user_id", user.id)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          supabase
+            .from("flashcard_sets")
+            .select("id")
+            .eq("user_id", user.id),
+          supabase
+            .from("flashcards")
+            .select("id")
+            .eq("user_id", user.id),
+        ]),
       ]);
 
       if (!isMounted) return;
@@ -206,6 +263,20 @@ export default function Home() {
           tasksResult.data as TaskRow[],
         ),
       );
+      setGoalTasks((tasksResult.data as TaskRow[]) || []);
+      setLearningMaterial(
+        learningMaterialResult.error
+          ? null
+          : (learningMaterialResult.data as LearningMaterialRow | null),
+      );
+      setFlashcardSummary(
+        flashcardSetsResult.error || flashcardsResult.error
+          ? null
+          : {
+              decks: flashcardSetsResult.data.length,
+              cards: flashcardsResult.data.length,
+            },
+      );
       setIsLoading(false);
     }
 
@@ -221,135 +292,172 @@ export default function Home() {
     };
   }, []);
 
-  const todayLabel = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+  useEffect(() => {
+    const dateUpdate = window.setTimeout(() => {
+      setTodayLabel(
+        new Date().toLocaleDateString("en-US", {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+        }),
+      );
+    }, 0);
+
+    return () => window.clearTimeout(dateUpdate);
+  }, []);
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-6xl">
-        <header className="mb-10">
-          <p className="text-sm font-medium text-gray-500">{todayLabel}</p>
-          <h2 className="mt-2 text-3xl font-bold text-gray-900">
-            Good morning 👋
-          </h2>
-          <p className="mt-2 text-gray-500">
-            Ready to make some progress today?
-          </p>
-        </header>
+      <div className="min-h-full bg-[#f7f3ec] px-1 py-2 text-[#242321] sm:px-3 sm:py-4">
+        <div className="mx-auto max-w-6xl">
+          <header className="mb-8 flex flex-col gap-5 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8a837a]">
+                {todayLabel || "Today"}
+              </p>
+              <h1 className="mt-3 font-serif text-4xl leading-none tracking-tight text-[#242321] sm:text-5xl">
+                Hello!
+              </h1>
+              <p className="mt-3 text-base text-[#77716a] sm:text-lg">
+                What are we learning today?
+              </p>
+            </div>
 
-        {/* Stats */}
-        {isLoading ? (
-          <p className="text-sm text-gray-500">Loading your dashboard...</p>
-        ) : error ? (
-          <p className="text-sm text-red-600">{error}</p>
-        ) : dashboardData ? (
-          <>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-2xl border border-gray-200 bg-white p-5">
-            <p className="text-sm text-gray-500">Today's Study Time</p>
-            <p className="mt-2 text-2xl font-bold">{dashboardData.studyTime}</p>
-          </div>
+            {dashboardData ? (
+              <div className="flex w-fit items-center gap-2 rounded-full border border-[#e1d9ce] bg-[#fffdf9] px-4 py-2 text-sm font-medium text-[#504a43]">
+                <span className="text-[#e8733a]">✦</span>
+                {dashboardData.streak} day streak
+              </div>
+            ) : null}
+          </header>
 
-          <div className="rounded-2xl border border-gray-200 bg-white p-5">
-            <p className="text-sm text-gray-500">Sessions</p>
-            <p className="mt-2 text-2xl font-bold">{dashboardData.sessions}</p>
-          </div>
-
-          <div className="rounded-2xl border border-gray-200 bg-white p-5">
-            <p className="text-sm text-gray-500">Current Streak</p>
-            <p className="mt-2 text-2xl font-bold">{dashboardData.streak} days</p>
-          </div>
-
-          <div className="rounded-2xl border border-gray-200 bg-white p-5">
-            <p className="text-sm text-gray-500">Focus Score</p>
-            <p className="mt-2 text-2xl font-bold">—</p>
-          </div>
-        </div>
-
-        {/* Focus Room */}
-        <div className="mt-8 rounded-2xl bg-gray-900 p-8 text-white">
-          <div className="max-w-xl">
-            <p className="text-sm font-medium text-gray-400">FOCUS ROOM</p>
-
-            <h3 className="mt-3 text-3xl font-bold">What will you focus on?</h3>
-
-            <p className="mt-3 text-gray-400">
-              Start a focused session and make meaningful progress without
-              distractions.
+          {isLoading ? (
+            <div className="rounded-3xl border border-[#e5ddd2] bg-[#fffdf9] p-8 text-sm text-[#77716a]">
+              Loading your dashboard...
+            </div>
+          ) : error ? (
+            <p className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
+              {error}
             </p>
+          ) : dashboardData ? (
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
+              <div className="space-y-5">
+                <section className="relative overflow-hidden rounded-3xl bg-[#242321] p-7 text-white sm:p-9">
+                  <div className="absolute right-8 top-8 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-xl text-[#f4c5c1]">
+                    ◷
+                  </div>
+                  <p className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#d6d0c9]">
+                    Pomodoro
+                  </p>
+                  <h2 className="mt-14 max-w-md font-serif text-4xl leading-[0.98] tracking-tight sm:text-5xl">
+                    Enter Focus Room
+                  </h2>
+                  <p className="mt-4 text-sm text-[#bdb7b0]">
+                    25 minutes of focused studying
+                  </p>
+                  <Link
+                    href="/focus-room"
+                    className="mt-7 inline-flex items-center rounded-full bg-[#f4c5c1] px-5 py-3 text-sm font-semibold text-[#242321] transition-colors hover:bg-[#f7d4d0]"
+                  >
+                    Start focusing <span className="ml-2">→</span>
+                  </Link>
+                </section>
 
-            <Link
-              href="/focus-room"
-              className="mt-6 inline-block rounded-xl bg-white px-6 py-3 font-semibold text-gray-900"
-            >
-              Start Focus Session
-            </Link>
-          </div>
+                <section className="rounded-3xl border border-[#e5ddd2] bg-[#fffdf9] p-6 sm:p-8">
+                  <div className="flex items-center justify-between gap-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a837a]">
+                      Continue learning
+                    </p>
+                    <span className="text-xs text-[#aaa198]">{dashboardData.studyTime} today</span>
+                  </div>
+                  {learningMaterial ? (
+                    <div className="mt-7">
+                      <p className="text-sm font-medium text-[#e8733a]">{learningMaterial.subject}</p>
+                      <h2 className="mt-2 font-serif text-3xl leading-tight text-[#242321]">
+                        {learningMaterial.title}
+                      </h2>
+                      <div className="mt-6 flex items-center justify-between text-sm">
+                        <span className="text-[#77716a]">{learningMaterial.progress ?? 0}% complete</span>
+                        <span className="font-medium text-[#504a43]">{learningMaterial.type}</span>
+                      </div>
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#eee7dc]">
+                        <div
+                          className="h-full rounded-full bg-[#e8733a]"
+                          style={{ width: `${Math.min(100, Math.max(0, learningMaterial.progress ?? 0))}%` }}
+                        />
+                      </div>
+                      <Link href="/learn" className="mt-6 inline-block text-sm font-semibold text-[#242321] hover:text-[#e8733a]">
+                        Continue <span className="ml-1">→</span>
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="mt-7">
+                      <h2 className="font-serif text-2xl text-[#242321]">Your next chapter starts here.</h2>
+                      <p className="mt-2 max-w-md text-sm leading-6 text-[#77716a]">Add a learning material to keep your progress in one place.</p>
+                      <Link href="/learn" className="mt-5 inline-block text-sm font-semibold text-[#242321] hover:text-[#e8733a]">
+                        Browse learning <span className="ml-1">→</span>
+                      </Link>
+                    </div>
+                  )}
+                </section>
+              </div>
+
+              <div className="space-y-5">
+                <section className="rounded-3xl bg-[#f3e4a9] p-6 sm:p-7">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#fff5c9] text-xl text-[#9b7a1d]">✦</div>
+                  <h2 className="mt-7 font-serif text-3xl leading-tight text-[#242321]">Study with AI</h2>
+                  <p className="mt-3 max-w-xs text-sm leading-6 text-[#655d47]">Summarize, quiz, explain, and study smarter</p>
+                  <Link href="/ai-tutor" className="mt-6 inline-flex items-center rounded-full bg-[#242321] px-5 py-3 text-sm font-semibold text-white hover:bg-[#3d3a36]">
+                    Start studying <span className="ml-2">→</span>
+                  </Link>
+                </section>
+
+                <section className="rounded-3xl border border-[#e5ddd2] bg-[#fffdf9] p-6 sm:p-7">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a837a]">Your goals</p>
+                    <Link href="/goals" className="text-sm font-semibold text-[#504a43] hover:text-[#e8733a]">View all →</Link>
+                  </div>
+                  {goalTasks.length > 0 ? (
+                    <ul className="mt-6 space-y-4">
+                      {goalTasks.slice(0, 4).map((task) => (
+                        <li key={task.id} className="flex items-start gap-3 text-sm">
+                          <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs ${task.completed ? "border-[#e8733a] bg-[#e8733a] text-white" : "border-[#cfc5b8] text-transparent"}`}>
+                            ✓
+                          </span>
+                          <span className={task.completed ? "text-[#aaa198] line-through" : "text-[#504a43]"}>{task.title}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-6 text-sm leading-6 text-[#77716a]">No goals yet. Create one to shape your next study session.</p>
+                  )}
+                </section>
+
+                <section className="rounded-3xl border border-[#e5ddd2] bg-[#fffdf9] p-6 sm:p-7">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a837a]">Flashcards</p>
+                    <span className="text-2xl text-[#e8733a]">▱</span>
+                  </div>
+                  {flashcardSummary ? (
+                    <>
+                      <div className="mt-6 flex items-end gap-3">
+                        <span className="font-serif text-4xl text-[#242321]">{flashcardSummary.cards}</span>
+                        <span className="pb-1 text-sm text-[#77716a]">saved cards</span>
+                      </div>
+                      <p className="mt-1 text-sm text-[#77716a]">Across {flashcardSummary.decks} {flashcardSummary.decks === 1 ? "deck" : "decks"}</p>
+                      <Link href="/flashcards" className="mt-5 inline-block text-sm font-semibold text-[#242321] hover:text-[#e8733a]">Review cards →</Link>
+                    </>
+                  ) : (
+                    <div className="mt-6">
+                      <p className="text-sm leading-6 text-[#77716a]">Your saved flashcards will appear here.</p>
+                      <Link href="/flashcards" className="mt-5 inline-block text-sm font-semibold text-[#242321] hover:text-[#e8733a]">Create cards →</Link>
+                    </div>
+                  )}
+                </section>
+              </div>
+            </div>
+          ) : null}
         </div>
-
-        {/* Goals */}
-        <div className="mt-8 grid gap-8 lg:grid-cols-2">
-          <div className="rounded-2xl border border-gray-200 bg-white p-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold">Tasks</h3>
-              <span className="text-sm text-gray-400">
-                {dashboardData.totalTasks} tasks
-              </span>
-            </div>
-
-            <div className="mt-8 text-center">
-              {dashboardData.totalTasks === 0 ? (
-                <>
-                  <p className="text-gray-400">No tasks yet.</p>
-                  <p className="mt-1 text-sm text-gray-400">
-                    Create a goal to get started.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-gray-700">
-                    {dashboardData.completedTasks} completed
-                  </p>
-                  <p className="mt-1 text-sm text-gray-400">
-                    {dashboardData.totalTasks - dashboardData.completedTasks} remaining
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-gray-200 bg-white p-6">
-            <h3 className="text-lg font-bold">Study Goal</h3>
-
-            <div className="mt-8 text-center">
-              {dashboardData.currentGoal ? (
-                <>
-                  <p className="font-medium text-gray-700">
-                    {dashboardData.currentGoal.label}
-                  </p>
-                  <p className="mt-2 text-2xl font-bold text-gray-900">
-                    {dashboardData.currentGoal.progress}%
-                  </p>
-                  <p className="mt-1 text-sm text-gray-400">
-                    {dashboardData.currentGoal.completedTasks} of {dashboardData.currentGoal.totalTasks} tasks completed
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-gray-400">No goals yet.</p>
-                  <p className="mt-1 text-sm text-gray-400">
-                    Your study goals will appear here.
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-          </>
-        ) : null}
       </div>
     </AppShell>
   );
