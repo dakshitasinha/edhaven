@@ -2,55 +2,48 @@
 
 > A calm space to learn at your own pace.
 
-EdHaven is a student-focused study workspace designed to bring learning, planning, focus, and progress into one simple place.
+EdHaven — Web Application Report
 
-Instead of juggling multiple tools for goals, notes, flashcards, study sessions, and progress, EdHaven aims to provide one clean workspace built around the way students actually study.
+EdHaven is a distraction-free digital study workspace designed to bring planning, focused studying, AI-assisted learning, and progress tracking into a single platform.
 
-## Current Features
+Core Modules
+Dashboard — Central overview of goals, tasks, study activity, focus time, streaks, and daily focus.
+Goals & Tasks — Students can create learning goals, divide them into tasks, and track completion.
+Focus Room — Dedicated study timer for focused sessions with session tracking and a distraction-capture feature that lets students save distractions for later.
+AI Study Hub — Centralized access to AI-powered learning tools:
+AI Study Plan
+AI Tutor
+AI Notes Summarization
+AI Flashcards
+Notes — Create, edit, search, and manage study notes, with AI summarization.
+Flashcards — Create, generate with AI from notes, and practice flashcards.
+Progress — Tracks focus time, study streaks, completed tasks, goal progress, learning activity, and recent activity.
+Authentication & Persistence — User accounts and application data are managed through Supabase, allowing study data to persist across sessions.
+AI Integration
 
-- 📊 **Dashboard** — A central overview of your study workspace
-- 🎯 **Goals** — Create learning goals, break them into tasks, and track completion
-- 📚 **Learn** — Organize learning materials by subject and track progress
-- ⏱️ **Focus Room** — Pomodoro-style focus sessions with study statistics
-- 📝 **Notes** — Create, edit, search, and organize simple study notes
-- 🧠 **Flashcards** — Create and practice question-and-answer flashcards
-- 📈 **Progress** — View study streaks, focus time, completed tasks, and activity
+EdHaven uses AI as an active learning assistant rather than simply providing a chatbot. Students can use their study material to:
 
-## Tech Stack
+Generate summaries
+Create flashcards
+Ask questions through an AI tutor
+Generate structured study plans
+Technology
 
-- Next.js
-- React
-- TypeScript
-- Tailwind CSS
-- Git / GitHub
+Frontend: Next.js, React, TypeScript, Tailwind CSS
+Backend & Database: Supabase
+AI: Google Gemini API
+Version Control: Git & GitHub
 
-## Project Status
+Application Flow
 
-EdHaven is currently in active development.
+The core experience is structured around:
 
-### Completed
-- Core application layout
-- Dashboard
-- Goals
-- Learn
-- Focus Room
-- Notes
-- Flashcards
-- Progress
-- Responsive navigation
+Set Goals → Focus & Study → Use AI to Learn → Track Progress
 
-### Coming Next
-- Supabase database
-- User authentication
-- Persistent goals, notes, and flashcards
-- Connecting data across the application
-- AI-powered study assistance
-- More personalized progress tracking
+This makes EdHaven a unified study environment rather than a collection of disconnected productivity tools.
 
-## Vision
+Design
 
-EdHaven is being built around a simple idea:
+The interface follows a calm, minimal study-oriented visual language with a warm neutral palette, focused typography, restrained animations, responsive layouts, and a dedicated futuristic-but-minimal visual identity for the AI Study Hub.
 
-**Studying shouldn't feel like managing a dozen different tools.**
-
-The goal is to create a focused, comfortable digital study environment where students can plan what they want to learn, actually study it, and see themselves making progress.
+Current status: Functional end-to-end web application with integrated authentication, persistent data, focus tracking, progress analytics, and AI-powered study workflows.
