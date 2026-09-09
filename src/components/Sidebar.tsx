@@ -8,6 +8,8 @@ import { supabase } from "@/lib/supabase/client";
 const navItems = [
   { href: "/", label: "Dashboard" },
   { href: "/goals", label: "Goals" },
+  { href: "/study-plan", label: "AI Study Plan" },
+  { href: "/ai-tutor", label: "AI Tutor" },
   { href: "/learn", label: "Learn" },
   { href: "/focus-room", label: "Focus Room" },
   { href: "/notes", label: "Notes" },

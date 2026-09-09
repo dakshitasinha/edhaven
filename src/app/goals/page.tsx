@@ -8,6 +8,7 @@ type GoalTask = {
   id: string;
   label: string;
   done: boolean;
+  planDay: number | null;
 };
 
 type Goal = {
@@ -31,6 +32,7 @@ type TaskRow = {
   goal_id: string;
   title: string;
   completed: boolean;
+  plan_day: number | null;
 };
 
 function formatDeadline(value: string) {
@@ -76,6 +78,12 @@ function GoalCard({
 }) {
   const deadlineLabel = formatDeadline(goal.deadline);
   const { total, completed, percent } = getGoalProgress(goal.tasks);
+  const plannedDays = [...new Set(
+    goal.tasks
+      .map((task) => task.planDay)
+      .filter((planDay): planDay is number => planDay !== null),
+  )].sort((first, second) => first - second);
+  const unplannedTasks = goal.tasks.filter((task) => task.planDay === null);
 
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
@@ -108,6 +116,23 @@ function GoalCard({
 
     onAddTask(goal.id, nextTitle);
     closeTaskForm();
+  }
+
+  function renderTask(task: GoalTask) {
+    return (
+      <li key={task.id}>
+        <div className="flex items-start justify-between gap-3">
+          <label className={`flex cursor-pointer items-start gap-3 text-sm ${task.done ? "text-gray-400" : "text-gray-700"}`}>
+            <input type="checkbox" checked={task.done} onChange={() => onToggleTask(goal.id, task.id)} className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 accent-gray-900" />
+            <span>{task.label}</span>
+          </label>
+          <div className="flex shrink-0 gap-2">
+            <button type="button" onClick={() => onEditTask(goal.id, task.id, task.label)} className="text-xs text-gray-400 hover:text-gray-700">Edit</button>
+            <button type="button" onClick={() => onDeleteTask(goal.id, task.id)} className="text-xs text-gray-400 hover:text-gray-700">Delete</button>
+          </div>
+        </div>
+      </li>
+    );
   }
 
   return (
@@ -155,49 +180,27 @@ function GoalCard({
         </div>
       </div>
 
-      {goal.tasks.length > 0 ? (
-        <ul className="mt-6 space-y-3">
-          {goal.tasks.map((task) => (
-            <li key={task.id}>
-              <div className="flex items-start justify-between gap-3">
-                <label
-                  className={`flex cursor-pointer items-start gap-3 text-sm ${
-                    task.done ? "text-gray-400" : "text-gray-700"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={task.done}
-                    onChange={() => onToggleTask(goal.id, task.id)}
-                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 accent-gray-900"
-                  />
-
-                  <span>{task.label}</span>
-                </label>
-
-                <div className="flex shrink-0 gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onEditTask(goal.id, task.id, task.label)
-                    }
-                    className="text-xs text-gray-400 hover:text-gray-700"
-                  >
-                    Edit
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => onDeleteTask(goal.id, task.id)}
-                    className="text-xs text-gray-400 hover:text-gray-700"
-                  >
-                    Delete
-                  </button>
+      {goal.tasks.length > 0 ? plannedDays.length > 0 ? (
+        <div className="mt-6 space-y-5">
+          {plannedDays.map((planDay) => {
+            const dayTasks = goal.tasks.filter((task) => task.planDay === planDay);
+            const dayCompleted = dayTasks.filter((task) => task.done).length;
+            const dayPercent = Math.round((dayCompleted / dayTasks.length) * 100);
+            return (
+              <section key={planDay} className="rounded-xl border border-gray-100 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h4 className="font-semibold text-gray-900">Day {planDay}</h4>
+                  <span className="text-xs text-gray-500">{dayCompleted} / {dayTasks.length} completed · {dayPercent}%</span>
                 </div>
-              </div>
-            </li>
-          ))}
-        </ul>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100"><div className="h-full rounded-full bg-gray-900" style={{ width: `${dayPercent}%` }} /></div>
+                <ul className="mt-4 space-y-3">{dayTasks.map(renderTask)}</ul>
+              </section>
+            );
+          })}
+          {unplannedTasks.length > 0 ? <section><p className="text-sm font-medium text-gray-500">Other tasks</p><ul className="mt-3 space-y-3">{unplannedTasks.map(renderTask)}</ul></section> : null}
+        </div>
+      ) : (
+        <ul className="mt-6 space-y-3">{goal.tasks.map(renderTask)}</ul>
       ) : (
         <p className="mt-6 text-sm text-gray-400">No tasks yet</p>
       )}
@@ -294,7 +297,7 @@ export default function GoalsPage() {
           .order("created_at", { ascending: false }),
         supabase
           .from("tasks")
-          .select("id, goal_id, title, completed")
+          .select("id, goal_id, title, completed, plan_day")
           .eq("user_id", user.id)
           .order("created_at", { ascending: true }),
       ]);
@@ -322,6 +325,7 @@ export default function GoalsPage() {
               id: task.id,
               label: task.title,
               done: task.completed,
+              planDay: task.plan_day,
             })),
         })),
       );
@@ -445,7 +449,7 @@ export default function GoalsPage() {
         title,
         completed: false,
       })
-      .select("id, goal_id, title, completed")
+      .select("id, goal_id, title, completed, plan_day")
       .single();
 
     if (insertError || !data) {
@@ -466,6 +470,7 @@ export default function GoalsPage() {
                   id: task.id,
                   label: task.title,
                   done: task.completed,
+                  planDay: task.plan_day,
                 },
               ],
             }
