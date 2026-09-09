@@ -66,6 +66,7 @@ export default function FocusRoomPage() {
   const [distractions, setDistractions] = useState<Distraction[]>([]);
   const [distractionText, setDistractionText] = useState("");
   const [isDistractionOpen, setIsDistractionOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [timerDurations, setTimerDurations] = useState<TimerDurations>({
     Focus: modeConfig.Focus.minutes,
     "Short Break": modeConfig["Short Break"].minutes,
@@ -97,6 +98,19 @@ export default function FocusRoomPage() {
   );
 
   const activeTask = focusTasks.find((task) => task.id === activeTaskId) || null;
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+
+    function handleFullscreenKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsFullscreen(false);
+      }
+    }
+
+    window.addEventListener("keydown", handleFullscreenKeyDown);
+    return () => window.removeEventListener("keydown", handleFullscreenKeyDown);
+  }, [isFullscreen]);
 
   useEffect(() => {
     let isMounted = true;
@@ -599,7 +613,16 @@ export default function FocusRoomPage() {
                 </div>
               )}
 
-              <div className="mt-8 rounded-2xl border border-[#e5ddd2] bg-[#f7f3ec] px-5 py-10 text-center sm:py-12">
+              <div className="relative mt-8 rounded-2xl border border-[#e5ddd2] bg-[#f7f3ec] px-5 py-10 text-center sm:py-12">
+                {isRunning && (
+                  <button
+                    type="button"
+                    onClick={() => setIsFullscreen(true)}
+                    className="absolute right-4 top-4 rounded-lg border border-[#dcd2c5] bg-[#fffdf9] px-3 py-2 text-xs font-semibold text-[#504a43] transition-colors hover:bg-[#eee7dc]"
+                  >
+                    Fullscreen
+                  </button>
+                )}
                 <div className="font-serif text-6xl leading-none tracking-tight text-[#b95f2d] md:text-8xl">
                   {formatTime(secondsLeft)}
                 </div>
@@ -820,6 +843,58 @@ export default function FocusRoomPage() {
           </aside>
         </div>
       </div>
+      </div>
+
+      <div
+        aria-hidden={!isFullscreen}
+        className={`fixed inset-0 z-40 flex flex-col items-center justify-center bg-[#f7f3ec] px-5 text-[#242321] transition-[opacity,transform] duration-250 ease-out ${
+          isFullscreen
+            ? "pointer-events-auto scale-100 opacity-100"
+            : "pointer-events-none scale-[0.98] opacity-0"
+        }`}
+      >
+        <button
+          type="button"
+          tabIndex={isFullscreen ? 0 : -1}
+          onClick={() => setIsFullscreen(false)}
+          className="absolute right-5 top-5 rounded-lg border border-[#dcd2c5] bg-[#fffdf9] px-3 py-2 text-xs font-semibold text-[#504a43] transition-colors hover:bg-[#eee7dc]"
+        >
+          Exit fullscreen
+        </button>
+
+        <div className="text-center">
+          <div className="font-serif text-8xl leading-none tracking-tight text-[#b95f2d] sm:text-[10rem]">
+            {formatTime(secondsLeft)}
+          </div>
+
+          <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+            <button
+              type="button"
+              tabIndex={isFullscreen ? 0 : -1}
+              onClick={isRunning ? handlePause : handleStart}
+              className="min-w-32 rounded-full bg-[#242321] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#3d3a36]"
+            >
+              {isRunning ? "Pause" : "Start"}
+            </button>
+            <button
+              type="button"
+              tabIndex={isFullscreen ? 0 : -1}
+              onClick={handleReset}
+              className="min-w-32 rounded-full border border-[#dcd2c5] bg-[#fffdf9] px-6 py-3 text-sm font-semibold text-[#504a43] transition-colors hover:bg-[#eee7dc]"
+            >
+              Reset
+            </button>
+          </div>
+
+          <button
+            type="button"
+            tabIndex={isFullscreen ? 0 : -1}
+            onClick={() => setIsDistractionOpen(true)}
+            className="mt-5 text-sm font-medium text-[#8a837a] underline-offset-4 transition-colors hover:text-[#b95f2d] hover:underline"
+          >
+            + Add distraction
+          </button>
+        </div>
       </div>
 
       {isDistractionOpen && (

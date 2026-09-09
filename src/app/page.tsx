@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import AppShell from "@/components/AppShell";
+import { SignOutButton } from "@/components/Sidebar";
 import { supabase } from "@/lib/supabase/client";
 
 type FocusSessionRow = {
@@ -25,20 +27,16 @@ type TaskRow = {
   completed: boolean;
 };
 
-type LearningMaterialRow = {
-  id: string;
-  title: string;
-  subject: string;
-  type: string;
-  description: string | null;
-  progress: number | null;
-  created_at: string;
-  updated_at: string;
-};
-
 type FlashcardSummary = {
   cards: number;
   decks: number;
+};
+
+type DailyFocus = {
+  label: string;
+  dateLabel: string;
+  minutes: number;
+  isToday: boolean;
 };
 
 type DashboardData = {
@@ -47,6 +45,7 @@ type DashboardData = {
   streak: number;
   totalTasks: number;
   completedTasks: number;
+  dailyFocus: DailyFocus[];
   currentGoal: {
     label: string;
     completedTasks: number;
@@ -112,6 +111,30 @@ function getGoalLabel(goal: GoalRow) {
   return goal.description || goal.title || goal.subject;
 }
 
+function buildDailyFocus(focusSessions: FocusSessionRow[]) {
+  const today = getStartOfDay(new Date());
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (6 - index));
+    const dateKey = getDateKey(date);
+
+    return {
+      label: date.toLocaleDateString("en-US", { weekday: "short" }),
+      dateLabel: date.toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      }),
+      minutes: focusSessions
+        .filter((session) => getDateKey(new Date(session.completed_at)) === dateKey)
+        .reduce((total, session) => total + session.duration_minutes, 0),
+      isToday: index === 6,
+    };
+  });
+
+  return days;
+}
+
 function buildDashboardData(
   focusSessions: FocusSessionRow[],
   goals: GoalRow[],
@@ -143,6 +166,7 @@ function buildDashboardData(
     streak: getCurrentStreak(focusSessions),
     totalTasks: tasks.length,
     completedTasks: tasks.filter((task) => task.completed).length,
+    dailyFocus: buildDailyFocus(focusSessions),
     currentGoal: currentGoal
       ? {
           label: getGoalLabel(currentGoal),
@@ -164,8 +188,6 @@ export default function Home() {
     null,
   );
   const [goalTasks, setGoalTasks] = useState<TaskRow[]>([]);
-  const [learningMaterial, setLearningMaterial] =
-    useState<LearningMaterialRow | null>(null);
   const [flashcardSummary, setFlashcardSummary] =
     useState<FlashcardSummary | null>(null);
   const [userName, setUserName] = useState("there");
@@ -203,7 +225,7 @@ export default function Home() {
 
       const [
         [focusSessionsResult, goalsResult, tasksResult],
-        [learningMaterialResult, flashcardSetsResult, flashcardsResult],
+        [flashcardSetsResult, flashcardsResult],
       ] = await Promise.all([
         Promise.all([
         supabase
@@ -222,15 +244,6 @@ export default function Home() {
           .eq("user_id", user.id),
         ]),
         Promise.all([
-          supabase
-            .from("learning_materials")
-            .select(
-              "id, title, subject, type, description, progress, created_at, updated_at",
-            )
-            .eq("user_id", user.id)
-            .order("updated_at", { ascending: false })
-            .limit(1)
-            .maybeSingle(),
           supabase
             .from("flashcard_sets")
             .select("id")
@@ -264,11 +277,6 @@ export default function Home() {
         ),
       );
       setGoalTasks((tasksResult.data as TaskRow[]) || []);
-      setLearningMaterial(
-        learningMaterialResult.error
-          ? null
-          : (learningMaterialResult.data as LearningMaterialRow | null),
-      );
       setFlashcardSummary(
         flashcardSetsResult.error || flashcardsResult.error
           ? null
@@ -308,8 +316,18 @@ export default function Home() {
 
   return (
     <AppShell>
-      <div className="min-h-full bg-[#f7f3ec] px-1 py-2 text-[#242321] sm:px-3 sm:py-4">
+        <div className="min-h-full bg-[#f7f3ec] px-1 py-2 text-[#242321] sm:px-3 sm:py-4 md:-mt-10">
         <div className="mx-auto max-w-6xl">
+          <nav className="mb-7 flex items-center justify-between border-b border-[#e5ddd2] bg-[#fffdf9] px-4 py-3 shadow-[0_4px_18px_rgba(73,56,35,0.03)] sm:px-5">
+            <div className="flex items-center gap-3">
+              <Image src="/edhaven-logo.png" alt="EdHaven" width={36} height={36} className="object-contain" priority />
+              <div>
+                <p className="font-serif text-lg leading-none text-[#242321]">EdHaven</p>
+                <p className="mt-1 text-xs text-[#77716a]">Your space to learn</p>
+              </div>
+            </div>
+            <SignOutButton compact />
+          </nav>
           <header className="mb-8 flex flex-col gap-5 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8a837a]">
@@ -365,40 +383,41 @@ export default function Home() {
 
                 <section className="rounded-3xl border border-[#e5ddd2] bg-[#fffdf9] p-6 sm:p-8">
                   <div className="flex items-center justify-between gap-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a837a]">
-                      Continue learning
-                    </p>
-                    <span className="text-xs text-[#aaa198]">{dashboardData.studyTime} today</span>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a837a]">
+                        Daily Focus
+                      </p>
+                      <p className="mt-2 text-sm text-[#77716a]">Your focus time this week</p>
+                    </div>
+                    <Link href="/progress" className="text-sm font-semibold text-[#504a43] hover:text-[#e8733a]">
+                      View progress →
+                    </Link>
                   </div>
-                  {learningMaterial ? (
-                    <div className="mt-7">
-                      <p className="text-sm font-medium text-[#e8733a]">{learningMaterial.subject}</p>
-                      <h2 className="mt-2 font-serif text-3xl leading-tight text-[#242321]">
-                        {learningMaterial.title}
-                      </h2>
-                      <div className="mt-6 flex items-center justify-between text-sm">
-                        <span className="text-[#77716a]">{learningMaterial.progress ?? 0}% complete</span>
-                        <span className="font-medium text-[#504a43]">{learningMaterial.type}</span>
-                      </div>
-                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#eee7dc]">
-                        <div
-                          className="h-full rounded-full bg-[#e8733a]"
-                          style={{ width: `${Math.min(100, Math.max(0, learningMaterial.progress ?? 0))}%` }}
-                        />
-                      </div>
-                      <Link href="/learn" className="mt-6 inline-block text-sm font-semibold text-[#242321] hover:text-[#e8733a]">
-                        Continue <span className="ml-1">→</span>
-                      </Link>
-                    </div>
-                  ) : (
-                    <div className="mt-7">
-                      <h2 className="font-serif text-2xl text-[#242321]">Your next chapter starts here.</h2>
-                      <p className="mt-2 max-w-md text-sm leading-6 text-[#77716a]">Add a learning material to keep your progress in one place.</p>
-                      <Link href="/learn" className="mt-5 inline-block text-sm font-semibold text-[#242321] hover:text-[#e8733a]">
-                        Browse learning <span className="ml-1">→</span>
-                      </Link>
-                    </div>
-                  )}
+                  <div className="mt-8 flex h-28 items-end justify-between gap-2 sm:h-32">
+                    {dashboardData.dailyFocus.map((day) => {
+                      const maxMinutes = Math.max(
+                        ...dashboardData.dailyFocus.map((item) => item.minutes),
+                        1,
+                      );
+                      const height = day.minutes === 0
+                        ? 0
+                        : Math.max(8, Math.round((day.minutes / maxMinutes) * 100));
+
+                      return (
+                        <div key={day.dateLabel} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2" title={`${day.dateLabel} — ${day.minutes} min`}>
+                          <div className="flex h-full items-end">
+                            <div
+                              className={`w-3 rounded-t-md transition-[height] sm:w-4 ${day.isToday ? "bg-[#b95f2d]" : "bg-[#e3a477]"}`}
+                              style={{ height: `${height}%` }}
+                            />
+                          </div>
+                          <span className={`text-[10px] ${day.isToday ? "font-semibold text-[#b95f2d]" : "text-[#8a837a]"}`}>
+                            {day.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </section>
               </div>
 
