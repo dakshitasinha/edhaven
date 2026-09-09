@@ -8,8 +8,7 @@ import { supabase } from "@/lib/supabase/client";
 const navItems = [
   { href: "/", label: "Dashboard" },
   { href: "/goals", label: "Goals" },
-  { href: "/study-plan", label: "AI Study Plan" },
-  { href: "/ai-tutor", label: "AI Tutor" },
+  { href: "/ai-study-hub", label: "AI Study Hub" },
   { href: "/learn", label: "Learn" },
   { href: "/focus-room", label: "Focus Room" },
   { href: "/notes", label: "Notes" },
@@ -19,9 +18,9 @@ const navItems = [
 
 function Brand() {
   return (
-    <div className="mb-10">
-      <h1 className="text-2xl font-bold text-gray-900">EdHaven</h1>
-      <p className="mt-1 text-sm text-gray-500">Your space to learn</p>
+    <div className="mb-10 border-b border-[#e5ddd2] pb-7">
+      <h1 className="font-serif text-3xl tracking-tight text-[#242321]">EdHaven</h1>
+      <p className="mt-2 text-sm text-[#77716a]">Your space to learn</p>
     </div>
   );
 }
@@ -30,7 +29,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
 
   return (
-    <nav className="space-y-2">
+    <nav className="space-y-1">
       {navItems.map((item) => {
         const isActive = pathname === item.href;
 
@@ -41,8 +40,8 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
             onClick={onNavigate}
             className={
               isActive
-                ? "block rounded-lg bg-gray-100 px-4 py-3 text-sm font-medium"
-                : "block rounded-lg px-4 py-3 text-sm text-gray-600 hover:bg-gray-100"
+                ? "block rounded-xl bg-[#242321] px-4 py-3 text-sm font-semibold text-white"
+                : "block rounded-xl px-4 py-3 text-sm text-[#77716a] hover:bg-[#eee7dc] hover:text-[#242321]"
             }
           >
             {item.label}
@@ -69,7 +68,7 @@ function LogoutButton({ onLoggedOut }: { onLoggedOut?: () => void }) {
       type="button"
       onClick={handleLogout}
       disabled={isLoggingOut}
-      className="mt-8 w-full rounded-lg border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-60"
+      className="mt-8 w-full rounded-xl border border-[#dcd2c5] px-4 py-3 text-left text-sm font-semibold text-[#504a43] hover:bg-[#eee7dc] disabled:opacity-60"
     >
       {isLoggingOut ? "Signing out..." : "Sign out"}
     </button>
@@ -85,7 +84,7 @@ export default function Sidebar({
 }) {
   return (
     <>
-      <aside className="hidden w-64 border-r border-gray-200 bg-white p-6 md:block">
+      <aside className="hidden w-64 border-r border-[#e5ddd2] bg-[#eee7dc] p-6 md:block">
         <Brand />
         <NavLinks />
         <LogoutButton />
@@ -96,15 +95,15 @@ export default function Sidebar({
           <button
             type="button"
             aria-label="Close menu"
-            className="absolute inset-0 bg-black/20"
+            className="absolute inset-0 bg-[#242321]/30"
             onClick={onClose}
           />
-          <aside className="relative z-50 h-full w-64 border-r border-gray-200 bg-white p-6">
+          <aside className="relative z-50 h-full w-64 border-r border-[#e5ddd2] bg-[#eee7dc] p-6">
             <div className="mb-4 flex justify-end">
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700"
+                className="rounded-xl border border-[#dcd2c5] px-3 py-2 text-sm font-semibold text-[#504a43]"
               >
                 Close
               </button>

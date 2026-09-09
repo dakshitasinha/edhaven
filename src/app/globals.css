@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f8fc;
-  --foreground: #171923;
+  --background: #f7f3ec;
+  --foreground: #242321;
+  --edhaven-cream: #f7f3ec;
+  --edhaven-card: #fffdf9;
+  --edhaven-ink: #242321;
+  --edhaven-muted: #77716a;
+  --edhaven-border: #e5ddd2;
+  --edhaven-orange: #b95f2d;
 }
 
 * {
@@ -13,5 +19,79 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 600;
+}
+
+.bg-white {
+  background-color: var(--edhaven-card);
+}
+
+.bg-gray-50 {
+  background-color: var(--edhaven-cream);
+}
+
+.bg-gray-100 {
+  background-color: #eee7dc;
+}
+
+.border-gray-200,
+.border-gray-300 {
+  border-color: var(--edhaven-border);
+}
+
+.text-gray-900,
+.text-gray-800 {
+  color: var(--edhaven-ink);
+}
+
+.text-gray-700,
+.text-gray-600,
+.text-gray-500 {
+  color: var(--edhaven-muted);
+}
+
+.text-gray-400 {
+  color: #aaa198;
+}
+
+.bg-gray-900 {
+  background-color: var(--edhaven-ink);
+}
+
+.h-full.rounded-full.bg-gray-900 {
+  background-color: var(--edhaven-orange);
+}
+
+.hover\:bg-gray-800:hover {
+  background-color: #3d3a36;
+}
+
+.hover\:bg-gray-50:hover {
+  background-color: var(--edhaven-cream);
+}
+
+.accent-gray-900 {
+  accent-color: var(--edhaven-orange);
+}
+
+input,
+select,
+textarea {
+  border-color: var(--edhaven-border);
+  background-color: var(--edhaven-card);
+  color: var(--edhaven-ink);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--edhaven-orange);
+  outline-color: var(--edhaven-orange);
 }

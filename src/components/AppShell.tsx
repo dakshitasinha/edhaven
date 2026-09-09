@@ -40,23 +40,23 @@ export default function AppShell({ children }: { children: ReactNode }) {
   if (!isAuthenticated) return null;
 
   return (
-    <main className="min-h-screen bg-[#f7f8fc]">
+    <main className="min-h-screen bg-[#f7f3ec] text-[#242321]">
       <div className="flex min-h-screen">
         <Sidebar isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3 md:hidden">
+          <header className="flex items-center gap-3 border-b border-[#e5ddd2] bg-[#fffdf9] px-4 py-3 md:hidden">
             <button
               type="button"
               onClick={() => setIsMenuOpen(true)}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700"
+              className="rounded-xl border border-[#dcd2c5] px-3 py-2 text-sm font-semibold text-[#504a43]"
             >
               Menu
             </button>
-            <span className="text-sm font-semibold text-gray-900">EdHaven</span>
+            <span className="font-serif text-lg font-semibold text-[#242321]">EdHaven</span>
           </header>
 
-          <section className="flex-1 p-6 md:p-10">{children}</section>
+          <section className="flex-1 p-5 sm:p-6 md:p-10">{children}</section>
         </div>
       </div>
     </main>

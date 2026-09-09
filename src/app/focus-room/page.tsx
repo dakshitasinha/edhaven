@@ -27,8 +27,11 @@ type FocusTask = {
   source: "goal" | "temporary";
   goalId?: string;
 };
-
-
+type Distraction = {
+  id: string;
+  text: string;
+  createdAt: string;
+};
 
 const timerSettingsStorageKey = "edhaven-focus-room-timer-settings";
 
@@ -60,6 +63,9 @@ export default function FocusRoomPage() {
   const [taskTitle, setTaskTitle] = useState("");
   const [taskLoading, setTaskLoading] = useState(true);
   const [taskError, setTaskError] = useState<string | null>(null);
+  const [distractions, setDistractions] = useState<Distraction[]>([]);
+  const [distractionText, setDistractionText] = useState("");
+  const [isDistractionOpen, setIsDistractionOpen] = useState(false);
   const [timerDurations, setTimerDurations] = useState<TimerDurations>({
     Focus: modeConfig.Focus.minutes,
     "Short Break": modeConfig["Short Break"].minutes,
@@ -244,6 +250,58 @@ export default function FocusRoomPage() {
       return nextTasks;
     });
   }
+
+    function saveDistraction(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const text = distractionText.trim();
+    if (!text) return;
+
+    const distraction: Distraction = {
+      id: `distraction-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      text,
+      createdAt: new Date().toISOString(),
+    };
+
+    setDistractions((current) => [distraction, ...current]);
+    setDistractionText("");
+    setIsDistractionOpen(false);
+  }
+
+  function removeDistraction(id: string) {
+    setDistractions((current) =>
+      current.filter((distraction) => distraction.id !== id),
+    );
+  }
+
+  function clearDistractions() {
+    setDistractions([]);
+  }
+
+    useEffect(() => {
+    const storedDistractions = window.localStorage.getItem(
+      "edhaven-focus-room-distractions",
+    );
+
+    if (!storedDistractions) return;
+
+    try {
+      const parsed = JSON.parse(storedDistractions) as Distraction[];
+
+      if (Array.isArray(parsed)) {
+        setDistractions(parsed);
+      }
+    } catch {
+      window.localStorage.removeItem("edhaven-focus-room-distractions");
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      "edhaven-focus-room-distractions",
+      JSON.stringify(distractions),
+    );
+  }, [distractions]);
 
   useEffect(() => {
     const storedSettings = window.localStorage.getItem(timerSettingsStorageKey);
@@ -449,20 +507,24 @@ export default function FocusRoomPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-6xl">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900 md:text-4xl">
+      <div className="-mx-1 -my-2 min-h-full bg-[#f7f3ec] px-1 py-2 text-[#242321] sm:-mx-3 sm:-my-4 sm:px-3 sm:py-4">
+        <div className="mx-auto max-w-6xl">
+        <header className="mb-8 sm:mb-10">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8a837a]">
+            Your focused study space
+          </p>
+          <h1 className="mt-3 font-serif text-4xl leading-none tracking-tight text-[#242321] md:text-5xl">
             Focus Room
           </h1>
-          <p className="mt-2 max-w-2xl text-base text-gray-600">
+          <p className="mt-3 max-w-2xl text-base text-[#77716a]">
             Create a distraction-free session and make your study time count.
           </p>
         </header>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.65fr)]">
-          <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm md:p-8">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
+          <section className="rounded-3xl border border-[#e5ddd2] bg-[#fffdf9] p-5 shadow-[0_8px_30px_rgba(73,56,35,0.04)] md:p-8">
             <div className="mx-auto max-w-md">
-              <div className="flex justify-center gap-2">
+              <div className="flex flex-wrap justify-center gap-1 rounded-2xl border border-[#e5ddd2] bg-[#f7f3ec] p-1">
                 {(Object.keys(modeConfig) as FocusMode[]).map((mode) => {
                   const selected = activeMode === mode;
 
@@ -473,8 +535,8 @@ export default function FocusRoomPage() {
                       onClick={() => setMode(mode)}
                       className={
                         selected
-                          ? "rounded-full bg-gray-900 px-3 py-2 text-sm font-medium text-white"
-                          : "rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                          ? "rounded-xl bg-[#242321] px-3 py-2 text-sm font-semibold text-white"
+                          : "rounded-xl px-3 py-2 text-sm font-medium text-[#77716a] hover:bg-[#fffdf9] hover:text-[#242321]"
                       }
                     >
                       {mode} — {timerDurations[mode]} min
@@ -483,7 +545,7 @@ export default function FocusRoomPage() {
                 })}
               </div>
 
-              <div className="mt-4 text-center">
+              <div className="mt-5 text-center">
                 <button
                   type="button"
                   onClick={() => {
@@ -491,17 +553,17 @@ export default function FocusRoomPage() {
                     setTimerSettingsError(null);
                     setIsTimerSettingsOpen((isOpen) => !isOpen);
                   }}
-                  className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="rounded-full border border-[#dcd2c5] bg-[#fffdf9] px-4 py-2 text-sm font-medium text-[#504a43] hover:border-[#bfb2a2] hover:bg-[#f7f3ec]"
                 >
                   {isTimerSettingsOpen ? "Close Timer Settings" : "Edit Timer"}
                 </button>
               </div>
 
               {isTimerSettingsOpen && (
-                <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                <div className="mt-5 rounded-2xl border border-[#e5ddd2] bg-[#f7f3ec] p-4">
                   <div className="grid gap-3 sm:grid-cols-3">
                     {(Object.keys(timerDraft) as FocusMode[]).map((mode) => (
-                      <label key={mode} className="text-sm text-gray-700">
+                      <label key={mode} className="text-sm text-[#504a43]">
                         <span className="mb-1 block font-medium">{mode}</span>
                         <input
                           type="number"
@@ -515,14 +577,14 @@ export default function FocusRoomPage() {
                               [mode]: Number(event.target.value),
                             }))
                           }
-                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900"
+                          className="w-full rounded-xl border border-[#dcd2c5] bg-[#fffdf9] px-3 py-2 text-sm text-[#242321] outline-none focus:border-[#e8733a]"
                         />
                       </label>
                     ))}
                   </div>
 
                   {timerSettingsError && (
-                    <p className="mt-3 text-sm text-red-600">
+                    <p className="mt-3 text-sm text-[#b54832]">
                       {timerSettingsError}
                     </p>
                   )}
@@ -530,15 +592,15 @@ export default function FocusRoomPage() {
                   <button
                     type="button"
                     onClick={handleSaveTimerSettings}
-                    className="mt-4 rounded-xl bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+                    className="mt-4 rounded-full bg-[#242321] px-4 py-2 text-sm font-semibold text-white hover:bg-[#3d3a36]"
                   >
                     Save Timer Settings
                   </button>
                 </div>
               )}
 
-              <div className="mt-8 rounded-2xl border border-gray-200 bg-gray-50 p-8 text-center">
-                <div className="text-5xl font-bold tracking-tight text-gray-900 md:text-7xl">
+              <div className="mt-8 rounded-2xl border border-[#e5ddd2] bg-[#f7f3ec] px-5 py-10 text-center sm:py-12">
+                <div className="font-serif text-6xl leading-none tracking-tight text-[#b95f2d] md:text-8xl">
                   {formatTime(secondsLeft)}
                 </div>
               </div>
@@ -547,45 +609,56 @@ export default function FocusRoomPage() {
                 <button
                   type="button"
                   onClick={handleStart}
-                  className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-medium text-white hover:bg-gray-800"
+                  className="rounded-full bg-[#242321] px-6 py-3 text-sm font-semibold text-white hover:bg-[#3d3a36]"
                 >
                   Start
                 </button>
                 <button
                   type="button"
                   onClick={handlePause}
-                  className="rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="rounded-full border border-[#dcd2c5] bg-[#fffdf9] px-6 py-3 text-sm font-semibold text-[#504a43] hover:bg-[#f7f3ec]"
                 >
                   Pause
                 </button>
                 <button
                   type="button"
                   onClick={handleReset}
-                  className="rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="rounded-full border border-[#dcd2c5] bg-[#fffdf9] px-6 py-3 text-sm font-semibold text-[#504a43] hover:bg-[#f7f3ec]"
                 >
                   Reset
                 </button>
               </div>
+              {activeMode === "Focus" && isRunning && (
+  <div className="mt-4 text-center">
+    <button
+      type="button"
+      onClick={() => setIsDistractionOpen(true)}
+      className="text-sm font-medium text-[#8a837a] underline-offset-4 hover:text-[#b95f2d] hover:underline"
+    >
+      + Add distraction
+    </button>
+  </div>
+)}
             </div>
           </section>
 
-          <aside className="space-y-6">
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <p className="text-sm font-medium uppercase tracking-[0.08em] text-gray-500">
+          <aside className="space-y-5">
+            <div className="rounded-3xl border border-[#e5ddd2] bg-[#fffdf9] p-5 shadow-[0_8px_30px_rgba(73,56,35,0.03)] sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a837a]">
                 Today&apos;s focus
               </p>
 
               {taskLoading ? (
-                <p className="mt-4 text-sm text-gray-500">Loading tasks...</p>
+                <p className="mt-4 text-sm text-[#77716a]">Loading tasks...</p>
               ) : (
                 <>
                   {focusTasks.length > 0 ? (
-                    <label className="mt-4 block text-sm text-gray-700">
+                    <label className="mt-4 block text-sm text-[#504a43]">
                       <span className="sr-only">Select a focus task</span>
                       <select
                         value={activeTaskId || ""}
                         onChange={(event) => setActiveTaskId(event.target.value)}
-                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900"
+                        className="w-full rounded-xl border border-[#dcd2c5] bg-[#fffdf9] px-3 py-2 text-sm text-[#242321] outline-none focus:border-[#e8733a]"
                       >
                         {focusTasks.map((task) => (
                           <option key={task.id} value={task.id}>
@@ -596,7 +669,7 @@ export default function FocusRoomPage() {
                       </select>
                     </label>
                   ) : (
-                    <p className="mt-4 text-sm text-gray-500">
+                    <p className="mt-4 text-sm leading-6 text-[#77716a]">
                       No Goal tasks yet. Add a temporary focus task below.
                     </p>
                   )}
@@ -607,8 +680,8 @@ export default function FocusRoomPage() {
                         htmlFor="active-focus-task"
                         className={`flex items-start gap-3 text-sm ${
                           activeTask.completed
-                            ? "text-gray-400 line-through"
-                            : "text-gray-700"
+                            ? "text-[#aaa198] line-through"
+                            : "text-[#504a43]"
                         }`}
                       >
                         <input
@@ -616,7 +689,7 @@ export default function FocusRoomPage() {
                           type="checkbox"
                           checked={activeTask.completed}
                           onChange={() => void toggleActiveTask()}
-                          className="mt-1 h-4 w-4 rounded border-gray-300 accent-gray-900"
+                          className="mt-1 h-4 w-4 rounded border-[#cfc5b8] accent-[#e8733a]"
                         />
                         <span>{activeTask.title}</span>
                       </label>
@@ -624,7 +697,7 @@ export default function FocusRoomPage() {
                       <button
                         type="button"
                         onClick={() => removeTask(activeTask.id)}
-                        className="shrink-0 text-xs text-gray-400 hover:text-gray-700"
+                        className="shrink-0 text-xs text-[#aaa198] hover:text-[#b95f2d]"
                       >
                         Remove
                       </button>
@@ -641,11 +714,11 @@ export default function FocusRoomPage() {
                       value={taskTitle}
                       onChange={(event) => setTaskTitle(event.target.value)}
                       placeholder="Add a temporary task"
-                      className="min-w-0 flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-400"
+                      className="min-w-0 flex-1 rounded-xl border border-[#dcd2c5] bg-[#fffdf9] px-3 py-2 text-sm text-[#242321] outline-none placeholder:text-[#aaa198] focus:border-[#e8733a]"
                     />
                     <button
                       type="submit"
-                      className="rounded-xl bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800"
+                      className="rounded-xl bg-[#b95f2d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#9f4f25]"
                     >
                       Add
                     </button>
@@ -655,7 +728,7 @@ export default function FocusRoomPage() {
                     <button
                       type="button"
                       onClick={clearCompletedTasks}
-                      className="mt-3 text-xs text-gray-500 hover:text-gray-700"
+                      className="mt-3 text-xs text-[#8a837a] hover:text-[#b95f2d]"
                     >
                       Clear completed
                     </button>
@@ -664,47 +737,142 @@ export default function FocusRoomPage() {
               )}
 
               {taskError ? (
-                <p className="mt-3 text-sm text-red-600">{taskError}</p>
+                <p className="mt-3 text-sm text-[#b54832]">{taskError}</p>
               ) : null}
             </div>
 
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900">Session stats</h2>
+            <div className="rounded-3xl border border-[#e5ddd2] bg-[#fffdf9] p-5 shadow-[0_8px_30px_rgba(73,56,35,0.03)] sm:p-6">
+              <h2 className="font-serif text-2xl text-[#242321]">Session stats</h2>
 
               {statsLoading && (
-                <p className="mt-3 text-sm text-gray-500">Loading focus stats...</p>
+                <p className="mt-3 text-sm text-[#77716a]">Loading focus stats...</p>
               )}
 
               {statsError && (
-                <p className="mt-3 text-sm text-red-600">{statsError}</p>
+                <p className="mt-3 text-sm text-[#b54832]">{statsError}</p>
               )}
 
               <div className="mt-4 space-y-4">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm text-gray-500">Sessions completed</span>
-                  <span className="text-sm font-semibold text-gray-900">
+                  <span className="text-sm text-[#77716a]">Sessions completed</span>
+                  <span className="text-sm font-semibold text-[#242321]">
                     {stats.sessionsCompleted}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm text-gray-500">Focus time</span>
-                  <span className="text-sm font-semibold text-gray-900">
+                  <span className="text-sm text-[#77716a]">Focus time</span>
+                  <span className="text-sm font-semibold text-[#242321]">
                     {Math.floor(stats.focusMinutes / 60)}h {stats.focusMinutes % 60}m
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm text-gray-500">Current streak</span>
-                  <span className="text-sm font-semibold text-gray-900">
+                  <span className="text-sm text-[#77716a]">Current streak</span>
+                  <span className="text-sm font-semibold text-[#242321]">
                     {stats.streakDays} days
                   </span>
                 </div>
               </div>
             </div>
+                  <div className="rounded-3xl border border-[#e5ddd2] bg-[#fffdf9] p-5 shadow-[0_8px_30px_rgba(73,56,35,0.03)] sm:p-6">
+              <div className="flex items-center justify-between gap-3">
+                    <h2 className="font-serif text-2xl text-[#242321]">Later</h2>
+
+                {distractions.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearDistractions}
+                    className="text-xs text-[#aaa198] hover:text-[#b95f2d]"
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
+
+              {distractions.length === 0 ? (
+                <p className="mt-3 text-sm leading-6 text-[#77716a]">
+                  Distractions you capture during focus will appear here.
+                </p>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  {distractions.map((distraction) => (
+                    <div
+                      key={distraction.id}
+                      className="flex items-start justify-between gap-3 rounded-xl border border-[#eee7dc] bg-[#f7f3ec] px-3 py-3"
+                    >
+                      <p className="text-sm text-[#504a43]">
+                        {distraction.text}
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() => removeDistraction(distraction.id)}
+                        className="shrink-0 text-xs text-[#aaa198] hover:text-[#b95f2d]"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </aside>
         </div>
       </div>
+      </div>
+
+      {isDistractionOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#242321]/35 px-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-md rounded-3xl border border-[#e5ddd2] bg-[#fffdf9] p-6 shadow-[0_20px_60px_rgba(36,35,33,0.18)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a837a]">
+                  Distraction
+                </p>
+                <h2 className="mt-2 font-serif text-2xl text-[#242321]">
+                  What distracted you?
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setDistractionText("");
+                  setIsDistractionOpen(false);
+                }}
+                className="text-sm text-[#aaa198] hover:text-[#b95f2d]"
+              >
+                Close
+              </button>
+            </div>
+
+            <form onSubmit={saveDistraction} className="mt-5">
+              <label htmlFor="distraction-text" className="sr-only">
+                Distraction
+              </label>
+
+              <input
+                id="distraction-text"
+                type="text"
+                autoFocus
+                value={distractionText}
+                onChange={(event) => setDistractionText(event.target.value)}
+                placeholder="e.g. Check assignment deadline"
+                className="w-full rounded-xl border border-[#dcd2c5] bg-[#fffdf9] px-4 py-3 text-sm text-[#242321] outline-none placeholder:text-[#aaa198] focus:border-[#e8733a]"
+              />
+
+              <button
+                type="submit"
+                className="mt-4 w-full rounded-full bg-[#242321] px-4 py-3 text-sm font-semibold text-white hover:bg-[#3d3a36]"
+              >
+                Save & Continue
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
     </AppShell>
   );
 }

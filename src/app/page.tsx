@@ -407,7 +407,7 @@ export default function Home() {
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#fff5c9] text-xl text-[#9b7a1d]">✦</div>
                   <h2 className="mt-7 font-serif text-3xl leading-tight text-[#242321]">Study with AI</h2>
                   <p className="mt-3 max-w-xs text-sm leading-6 text-[#655d47]">Summarize, quiz, explain, and study smarter</p>
-                  <Link href="/ai-tutor" className="mt-6 inline-flex items-center rounded-full bg-[#242321] px-5 py-3 text-sm font-semibold text-white hover:bg-[#3d3a36]">
+                  <Link href="/ai-study-hub" className="mt-6 inline-flex items-center rounded-full bg-[#242321] px-5 py-3 text-sm font-semibold text-white hover:bg-[#3d3a36]">
                     Start studying <span className="ml-2">→</span>
                   </Link>
                 </section>
