@@ -37,7 +37,9 @@ function NavIcon({ label }: { label: string }) {
 function Brand({ isExpanded }: { isExpanded: boolean }) {
   return (
     <div className={`mb-8 border-b border-[#e5ddd2] pb-7 ${isExpanded ? "" : "flex justify-center"}`}>
-      <Image src="/edhaven-logo.png" alt="EdHaven" width={isExpanded ? 72 : 44} height={isExpanded ? 72 : 44} className="object-contain" priority />
+      <Link href="/" aria-label="Go to Dashboard" onClick={(event) => event.stopPropagation()}>
+        <Image src="/edhaven-logo.png" alt="EdHaven" width={isExpanded ? 72 : 44} height={isExpanded ? 72 : 44} className="object-contain" priority />
+      </Link>
       {isExpanded ? (
         <>
           <h1 className="mt-2 font-serif text-2xl tracking-tight text-[#242321]">EdHaven</h1>
@@ -115,7 +117,17 @@ export default function Sidebar({
 }) {
   return (
     <>
-      <aside className={`${isExpanded ? "w-64" : "w-20"} hidden h-screen shrink-0 border-r border-[#e5ddd2] bg-[#eee7dc] p-4 transition-[width] duration-250 ease-out md:flex md:flex-col`}>
+      <aside
+        onClick={(event) => {
+          if (!isExpanded && !(event.target as HTMLElement).closest("a, button")) {
+            onToggleExpanded?.();
+          }
+        }}
+        onMouseLeave={() => {
+          if (isExpanded) onToggleExpanded?.();
+        }}
+        className={`${isExpanded ? "w-64" : "w-20"} hidden h-screen shrink-0 border-r border-[#e5ddd2] bg-[#eee7dc] p-4 transition-[width] duration-250 ease-out md:flex md:flex-col ${isExpanded ? "" : "cursor-pointer hover:bg-[#e1d9ce]"}`}
+      >
         <div className={`mb-4 flex ${isExpanded ? "justify-end" : "justify-center"}`}>
           <button type="button" onClick={onToggleExpanded} aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"} title={isExpanded ? "Collapse sidebar" : "Expand sidebar"} className="rounded-xl p-2 text-[#77716a] hover:bg-[#e1d9ce] hover:text-[#242321]">
             <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.7"><path strokeLinecap="round" strokeLinejoin="round" d={isExpanded ? "m15 18-6-6 6-6" : "m9 18 6-6-6-6"} /></svg>

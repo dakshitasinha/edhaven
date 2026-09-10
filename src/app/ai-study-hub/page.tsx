@@ -126,7 +126,7 @@ export default function AIStudyHubPage() {
   return (
     <AppShell>
       <div
-        className="relative isolate h-[calc(100dvh-8rem)] min-h-[560px] overflow-hidden bg-[#f7f3ec] px-1 py-3 text-[#242321] sm:px-3 sm:py-5"
+        className="relative isolate min-h-[560px] overflow-hidden bg-[#f7f3ec] px-1 py-3 text-[#242321] sm:px-3 sm:py-5"
         onClick={handlePageClick}
       >
         <div
@@ -165,7 +165,7 @@ export default function AIStudyHubPage() {
           </header>
 
           <main
-            className="relative h-[480px] min-h-[480px] overflow-hidden transition-[filter,opacity] duration-300 ease-out lg:h-[min(58dvh,500px)] lg:min-h-[430px]"
+            className="relative h-[480px] min-h-[480px] overflow-hidden transition-[filter,opacity] duration-300 ease-out lg:h-[560px] lg:min-h-[560px]"
             aria-label="AI study paths"
           >
             {studyPaths.map((path, index) => {
