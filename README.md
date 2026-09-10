@@ -63,19 +63,6 @@ Four AI-powered learning workflows:
 
 ---
 
-## How EdHaven Works
-
-        GOALS
-          ↓
-        TASKS
-          ↓
-     FOCUS ROOM
-          ↓
-   NOTES / AI TOOLS
-          ↓
-      PROGRESS
-          ↺
-
 Current Prototype
 
 The working prototype demonstrates the core EdHaven study workflow, including:
