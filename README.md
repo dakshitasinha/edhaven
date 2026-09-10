@@ -1,49 +1,118 @@
 # EdHaven
 
-> A calm space to learn at your own pace.
+> **Your space, your pace.**
 
-EdHaven — Web Application Report
+EdHaven is an integrated, distraction-free study workspace designed for students in the digital age. It brings study planning, focused learning, AI-powered learning tools, notes, and progress tracking together in one connected platform.
 
-EdHaven is a distraction-free digital study workspace designed to bring planning, focused studying, AI-assisted learning, and progress tracking into a single platform.
+The goal is simple: help students adapt the way they learn as technology evolves — making learning more effective, efficient, flexible, and comfortable without making it more overwhelming.
 
-Core Modules
-Dashboard — Central overview of goals, tasks, study activity, focus time, streaks, and daily focus.
-Goals & Tasks — Students can create learning goals, divide them into tasks, and track completion.
-Focus Room — Dedicated study timer for focused sessions with session tracking and a distraction-capture feature that lets students save distractions for later.
-AI Study Hub — Centralized access to AI-powered learning tools:
+---
+
+## Overview
+
+Students today have access to more educational resources than ever before. At the same time, they face increasing distractions, fragmented productivity tools, rapidly changing technical requirements, and the challenge of maintaining consistent study habits.
+
+EdHaven brings multiple study approaches into a single workspace:
+
+**Plan → Focus → Learn → Track**
+
+Instead of switching between separate applications for planning, focus sessions, notes, AI assistance, and progress tracking, students can manage their core study workflow from one platform.
+
+---
+
+## Key Features
+
+### Goal & Task Management
+- Create learning goals and break them into actionable tasks.
+- Organize study work around specific objectives.
+- Track task completion and overall progress.
+
+### Focus Room
+- Dedicated environment for focused study sessions.
+- Focus, Short Break, and Long Break modes.
+- Associate sessions with study tasks.
+- Capture distractions without leaving the session.
+- Record completed focus sessions for progress tracking.
+
+### AI Study Hub
+
+Four AI-powered learning workflows:
+
+- **AI Study Plan** — Generate structured study plans based on learning requirements.
+- **AI Tutor** — Get explanations and assistance while learning.
+- **Summarize Notes with AI** — Convert study material into concise summaries.
+- **Make Flashcards with AI** — Generate flashcards from learning material to support active recall.
+
+### Notes
+- Create and organize personal study notes.
+- Use AI to transform notes into useful learning resources.
+
+### Flashcards
+- Review study material using flashcards.
+- Support active-recall-based revision.
+
+### Progress Tracking
+- Track completed tasks and focus sessions.
+- Monitor study activity and consistency.
+- Visualize progress toward learning goals.
+
+### Authentication & Data
+- Secure user authentication.
+- User-specific study data.
+- Database-level access control through Supabase Row Level Security.
+
+---
+
+## How EdHaven Works
+
+        GOALS
+          ↓
+        TASKS
+          ↓
+     FOCUS ROOM
+          ↓
+   NOTES / AI TOOLS
+          ↓
+      PROGRESS
+          ↺
+
+Current Prototype
+
+The working prototype demonstrates the core EdHaven study workflow, including:
+
+User authentication
+Goal and task management
+Focus Room
+Notes
+Flashcards
+AI Study Hub
 AI Study Plan
 AI Tutor
-AI Notes Summarization
-AI Flashcards
-Notes — Create, edit, search, and manage study notes, with AI summarization.
-Flashcards — Create, generate with AI from notes, and practice flashcards.
-Progress — Tracks focus time, study streaks, completed tasks, goal progress, learning activity, and recent activity.
-Authentication & Persistence — User accounts and application data are managed through Supabase, allowing study data to persist across sessions.
-AI Integration
+AI note summarization
+AI flashcard generation
+Progress tracking
 
-EdHaven uses AI as an active learning assistant rather than simply providing a chatbot. Students can use their study material to:
+The project is currently focused on demonstrating the core student experience and technical feasibility.
 
-Generate summaries
-Create flashcards
-Ask questions through an AI tutor
-Generate structured study plans
-Technology
+Future Scope
 
-Frontend: Next.js, React, TypeScript, Tailwind CSS
-Backend & Database: Supabase
-AI: Google Gemini API
-Version Control: Git & GitHub
+Potential future extensions include:
 
-Application Flow
+Deeper AI personalization
+Syllabus-based study planning
+Advanced learning analytics
+Calendar integration
+Enhanced spaced-repetition capabilities
+Stronger distraction-control features
+Institutional/college integration
+Mobile or PWA support
+Improved AI grounding and source-based learning
+Design Inspiration
 
-The core experience is structured around:
+EdHaven's product experience was informed by existing productivity and study platforms, including:
 
-Set Goals → Focus & Study → Use AI to Learn → Track Progress
+Pomofocus — focus and Pomodoro workflow inspiration
+Lofi Cafe — focused digital study environment inspiration
+Wonderspace — study workspace and productivity inspiration
 
-This makes EdHaven a unified study environment rather than a collection of disconnected productivity tools.
-
-Design
-
-The interface follows a calm, minimal study-oriented visual language with a warm neutral palette, focused typography, restrained animations, responsive layouts, and a dedicated futuristic-but-minimal visual identity for the AI Study Hub.
-
-Current status: Functional end-to-end web application with integrated authentication, persistent data, focus tracking, progress analytics, and AI-powered study workflows.
+These platforms were used as design and product references, not as replacements for EdHaven's own workflow.
